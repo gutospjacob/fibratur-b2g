@@ -1,0 +1,25 @@
+{
+  "name": "fibratur-painel-licitacoes",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "postbuild": "node -e \"const fs=require('fs'); fs.copyFileSync('server.cjs','dist/server.cjs'); fs.copyFileSync('scraper.cjs','dist/scraper.cjs'); fs.copyFileSync('analyzer.cjs','dist/analyzer.cjs'); fs.copyFileSync('collector.cjs','dist/collector.cjs'); console.log('server.cjs + scraper.cjs + analyzer.cjs + collector.cjs copiados para dist/')\"",
+    "start": "node server.cjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "adm-zip": "^0.5.17",
+    "pdf-parse": "^2.4.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  }
+}

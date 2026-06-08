@@ -1,0 +1,29 @@
+node_modules/
+dist/
+.env
+.env.local
+npm-debug.log*
+server-local.log
+deploy-artifacts-*/
+debug.html
+files.html
+portal-sample.html
+ler-excel.cjs
+vite.config.js.timestamp-*.mjs
+
+# Dados locais/sensiveis. Em producao use DATA_DIR com disco persistente.
+dados.json
+documentos.json
+senhas.json
+uploads/
+
+# Backups locais.
+*.bak
+*.bak-*
+**/*.bak
+**/*.bak-*
+dados.json.bak*
+dados.backup*.json
+documentos.backup*.json
+documentos.json.bak
+senhas.json.bak
