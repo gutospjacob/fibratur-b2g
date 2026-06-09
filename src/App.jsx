@@ -109,7 +109,7 @@ const STATUS_COLOR = {
   participando:"#16a34a",   // verde
   ganhamos:    "#059669",   // verde forte
   perdemos:    "#dc2626",   // vermelho
-  descartado:  "#6b7280",   // cinza
+  descartado:  "#dc2626",   // vermelho
   // legados
   alterado: "#f59e0b",
   pendente_analise: "#8b5cf6",
@@ -3343,7 +3343,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
     { nome: "Participadas", qtd: stats.participei, pct: stats.taxaParticipacao, valor: valorTotal(participouHistorico), sub: `${stats.taxaParticipacao}% das analisadas`, cor: "#16a34a" },
     { nome: "Ganhas", qtd: stats.porStatus.ganhamos || 0, pct: stats.aproveitamento, valor: stats.valorPorStatus.ganhamos || 0, sub: `${stats.aproveitamento}% das participadas`, cor: "#059669" },
     { nome: "Perdidas", qtd: stats.porStatus.perdemos || 0, pct: stats.participei ? Math.round(((stats.porStatus.perdemos || 0) / stats.participei) * 100) : 0, valor: stats.valorPorStatus.perdemos || 0, sub: "das participadas", cor: "#dc2626" },
-    { nome: "Descartadas", qtd: stats.porStatus.descartado || 0, pct: stats.taxaDescarte, valor: stats.valorPorStatus.descartado || 0, sub: `${stats.taxaDescarte}% do total`, cor: "#64748b" },
+    { nome: "Descartadas", qtd: stats.porStatus.descartado || 0, pct: stats.taxaDescarte, valor: stats.valorPorStatus.descartado || 0, sub: `${stats.taxaDescarte}% do total`, cor: STATUS_COLOR.descartado },
     { nome: "Em aberto", qtd: stats.emAberto, pct: stats.total ? Math.round((stats.emAberto / stats.total) * 100) : 0, valor: stats.valorAberto, sub: "sem fechamento", cor: "#2563eb" },
   ]
   const etapasAtual = [
@@ -3352,7 +3352,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
     { nome: "Participadas", qtd: stats.porStatus.participando || 0, pct: stats.total ? Math.round(((stats.porStatus.participando || 0) / stats.total) * 100) : 0, valor: stats.valorPorStatus.participando || 0, sub: "status atual: Participando", cor: "#16a34a" },
     { nome: "Ganhas", qtd: stats.porStatus.ganhamos || 0, pct: stats.total ? Math.round(((stats.porStatus.ganhamos || 0) / stats.total) * 100) : 0, valor: stats.valorPorStatus.ganhamos || 0, sub: "status atual", cor: "#059669" },
     { nome: "Perdidas", qtd: stats.porStatus.perdemos || 0, pct: stats.total ? Math.round(((stats.porStatus.perdemos || 0) / stats.total) * 100) : 0, valor: stats.valorPorStatus.perdemos || 0, sub: "status atual", cor: "#dc2626" },
-    { nome: "Descartadas", qtd: stats.porStatus.descartado || 0, pct: stats.taxaDescarte, valor: stats.valorPorStatus.descartado || 0, sub: "status atual", cor: "#64748b" },
+    { nome: "Descartadas", qtd: stats.porStatus.descartado || 0, pct: stats.taxaDescarte, valor: stats.valorPorStatus.descartado || 0, sub: "status atual", cor: STATUS_COLOR.descartado },
     { nome: "Em aberto", qtd: licitacoes.filter(emAbertoAtual).length, pct: stats.total ? Math.round((licitacoes.filter(emAbertoAtual).length / stats.total) * 100) : 0, valor: stats.valorAberto, sub: "Novo, Amanhã, Em análise e Participando", cor: "#2563eb" },
   ]
   const etapas = modoFunil === "historico" ? etapasHistorico : etapasAtual
