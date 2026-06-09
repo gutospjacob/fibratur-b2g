@@ -30,7 +30,7 @@ const PORTAIS = [
 ]
 
 const CATEGORIAS = [
-  "agenciamento", "passagens", "hospedagem",
+  "agenciamento", "passagens", "passagens_rodoviarias", "hospedagem",
   "locacao_veiculos", "seguro_viagem", "viagens_fluviais"
 ]
 
@@ -48,6 +48,7 @@ const UFS = [
 const CATEGORIA_LABEL = {
   agenciamento: "Agenciamento",
   passagens: "Passagens",
+  passagens_rodoviarias: "Rodoviário",
   hospedagem: "Hospedagem",
   locacao_veiculos: "Locação Veículos",
   seguro_viagem: "Seguro Viagem",
@@ -311,7 +312,8 @@ function textoNormalizado(valor) {
 function categoriaDaLicitacao(l) {
   const texto = textoNormalizado([l?.categoria, l?.objeto, l?.palavras_chave].flat().filter(Boolean).join(" "))
   if (/hospedagem (?:de )?(?:site|sitios|portal|sistema|pagina|website|web|aplicacao|software)|hospedagem em nuvem|infraestrutura de datacenter|computacao em nuvem|datacenter|data center|servidor\s+(?:dedicado|web|em nuvem|virtual|de aplicacao|de banco)|sistema informatizado|licenca de uso|suporte tecnico|manutencao corretiva|manutencao evolutiva/.test(texto)) return "ti_cloud"
-  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|passagens? rodovi|bilhetes? rodovi|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes|transporte rodoviario de passageiros/.test(texto)) return "passagens"
+  if (/passagens? rodovi|bilhetes? rodovi|transporte rodoviario de passageiros/.test(texto)) return "passagens_rodoviarias"
+  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes/.test(texto)) return "passagens"
   if (/seguro viagem/.test(texto)) return "seguro_viagem"
   if (/locacao de veiculos|aluguel de veiculos/.test(texto)) return "locacao_veiculos"
   if (/viagem fluvial|passagem fluvial|transporte fluvial/.test(texto)) return "viagens_fluviais"

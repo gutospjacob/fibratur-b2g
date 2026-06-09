@@ -173,7 +173,8 @@ function categoriaPorTexto(text) {
 
 function categoriaPorTextoCompat(text) {
   var n = norm(text)
-  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|passagens? rodovi|bilhetes? rodovi|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes|transporte rodoviario de passageiros/.test(n)) return 'passagens'
+  if (/passagens? rodovi|bilhetes? rodovi|transporte rodoviario de passageiros/.test(n)) return 'passagens_rodoviarias'
+  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes/.test(n)) return 'passagens'
   if (/seguro viagem/.test(n)) return 'seguro_viagem'
   if (/locacao de veiculos|aluguel de veiculos/.test(n)) return 'locacao_veiculos'
   if (/viagem fluvial|passagem fluvial|transporte fluvial/.test(n)) return 'viagens_fluviais'
