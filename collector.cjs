@@ -20,6 +20,11 @@
   'passagens rodoviarias',
   'bilhete rodoviario',
   'bilhetes rodoviarios',
+  'passagens terrestres',
+  'passagem terrestre',
+  'bilhete terrestre',
+  'passagens de onibus',
+  'passagem de onibus',
   'transporte rodoviario de passageiros',
   'seguro viagem',
   'fornecimento de passagens',
@@ -47,6 +52,9 @@ const PNCP_SEARCH_TERMS = [
   'passagens rodoviarias',
   'passagem rodoviaria',
   'bilhete rodoviario',
+  'passagens terrestres',
+  'passagem terrestre',
+  'passagens de onibus',
   'seguro viagem',
 ]
 
@@ -157,11 +165,16 @@ function isHospedagemTurismoText(n) {
   return /passagens?|viagens?|turismo|agenciamento|agencia|hotelaria|hotel|diarias?|acomodacao|deslocamento|evento|seminario|congresso|participantes|servidores publicos|colaboradores/.test(n)
 }
 
+function ehPassagemRodoviaria(n) {
+  return /passagens? rodovi|bilhetes? rodovi|passagens? terrestres?|bilhetes? terrestres?|passagens? de onibus|bilhetes? de onibus|fornecimento de passagens? terrestres?|agenciamento de passagens? terrestres?|transporte rodoviario de passageiros/.test(n)
+    || ((/rodoviari[ao]s?|terrestres?|onibus/.test(n)) && /passagens?|bilhetes?|agenciamento|reserva|emissao|remarcacao|cancelamento|fornecimento/.test(n))
+}
+
 function categoriaPorTexto(text) {
   var n = norm(text)
   var cats = []
   if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais/.test(n)) cats.push('passagens aéreas')
-  if (/passagens? rodovi|bilhetes? rodovi|transporte rodoviario de passageiros/.test(n)) cats.push('passagens rodoviárias')
+  if (ehPassagemRodoviaria(n)) cats.push('passagens rodoviárias')
   if (/agenciamento|agencia de viagens|servicos de viagens|agencia de turismo/.test(n)) cats.push('agenciamento de viagens')
   if (isHospedagemTurismoText(n)) cats.push('hospedagem')
   if (/seguro viagem/.test(n)) cats.push('seguro viagem')
@@ -173,7 +186,7 @@ function categoriaPorTexto(text) {
 
 function categoriaPorTextoCompat(text) {
   var n = norm(text)
-  if (/passagens? rodovi|bilhetes? rodovi|transporte rodoviario de passageiros/.test(n)) return 'passagens_rodoviarias'
+  if (ehPassagemRodoviaria(n)) return 'passagens_rodoviarias'
   if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes/.test(n)) return 'passagens'
   if (/seguro viagem/.test(n)) return 'seguro_viagem'
   if (/locacao de veiculos|aluguel de veiculos/.test(n)) return 'locacao_veiculos'
@@ -231,7 +244,7 @@ function classifySimple(item) {
   score += Math.min(pos.length * 16, 55)
   var nText = norm(text)
   if (/agenciamento de viagens|agencia de viagens|agenciamento de passagens|passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais/.test(nText)) score += 20
-  if (/passagens? rodovi|bilhetes? rodovi|transporte rodoviario de passageiros/.test(nText)) score += 15
+  if (ehPassagemRodoviaria(nText)) score += 15
   if (item.valorTotalEstimado || item.valorTotalHomologado) score += 5
   if (item.dataEncerramentoProposta && new Date(item.dataEncerramentoProposta) > new Date()) score += 10
   score -= Math.min(neg.length * 12, 45)
