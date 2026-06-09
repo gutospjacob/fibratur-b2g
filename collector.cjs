@@ -5,6 +5,9 @@
   'agenciamento de passagens',
   'passagem aerea',
   'passagens aereas',
+  'passagens aereas nacionais',
+  'passagens aereas internacionais',
+  'transporte aereo',
   'passagens nacionais',
   'passagens internacionais',
   'passagem nacional',
@@ -39,6 +42,9 @@ const PNCP_SEARCH_TERMS = [
   'agenciamento de passagens',
   'passagens aereas',
   'passagem aerea',
+  'passagens aereas nacionais',
+  'passagens aereas internacionais',
+  'transporte aereo',
   'passagens nacionais',
   'passagens internacionais',
   'emissao de bilhetes',
@@ -170,29 +176,28 @@ function ehPassagemRodoviaria(n) {
     || ((/rodoviari[ao]s?|terrestres?|onibus/.test(n)) && /passagens?|bilhetes?|agenciamento|reserva|emissao|remarcacao|cancelamento|fornecimento/.test(n))
 }
 
-function categoriaPorTexto(text) {
+function categoriasPorTextoCompat(text) {
   var n = norm(text)
   var cats = []
-  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais/.test(n)) cats.push('passagens aéreas')
-  if (ehPassagemRodoviaria(n)) cats.push('passagens rodoviárias')
-  if (/agenciamento|agencia de viagens|servicos de viagens|agencia de turismo/.test(n)) cats.push('agenciamento de viagens')
-  if (isHospedagemTurismoText(n)) cats.push('hospedagem')
-  if (/seguro viagem/.test(n)) cats.push('seguro viagem')
-  if (/locacao de veiculos|aluguel de veiculos/.test(n)) cats.push('locação de veículos')
-  if (/transporte terrestre|passagens? rodovi/.test(n)) cats.push('transporte terrestre')
-  if (cats.length > 1) return 'mista'
-  return cats[0] || 'não relacionada'
+  if (/passagens? aere|bilhetes? aere|transporte aereo|passagens? nacionais|passagens? internacionais|passagens? aereas? nacionais|passagens? aereas? internacionais|agenciamento de viagens aereas|fornecimento de passagens? aereas|reserva.*passagens? aereas|emissao.*passagens? aereas|remarcacao.*passagens? aereas|cancelamento.*passagens? aereas/.test(n)) cats.push('Passagem aérea')
+  if (ehPassagemRodoviaria(n) || /transporte rodoviario|transporte terrestre/.test(n)) cats.push('Rodoviário')
+  if (/hospedagem|hoteis?|hotel|diarias?|reserva de hotel|reserva hoteleira|acomodacao|servicos? hoteleiros/.test(n) && !isHospedagemTiText(n)) cats.push('Hospedagem')
+  if (/locacao de veiculos|aluguel de veiculos|veiculo locado|carros?|vans?|onibus locado|transporte com motorista|transporte sem motorista|frota|motorista|traslado|transfer/.test(n)) cats.push('Locação de veículos')
+  if (/seguro viagem|seguro de viagem|assistencia viagem|assistencia medica internacional|seguro internacional|cobertura medica em viagem/.test(n)) cats.push('Seguro viagem')
+  if (/transporte fluvial|passagens? fluviais?|embarcacao|barco|lancha|balsa|transporte aquaviario|transporte hidroviario/.test(n)) cats.push('Viagens fluviais')
+  if (/agencia de viagens|agenciamento de viagens|servico de agenciamento|gestao de viagens|organizacao de viagens|intermediacao de servicos de viagem|reserva.*emissao.*remarcacao.*cancelamento/.test(n)) cats.push('Agenciamento')
+  return Array.from(new Set(cats))
 }
 
 function categoriaPorTextoCompat(text) {
-  var n = norm(text)
-  if (ehPassagemRodoviaria(n)) return 'passagens_rodoviarias'
-  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes/.test(n)) return 'passagens'
-  if (/seguro viagem/.test(n)) return 'seguro_viagem'
-  if (/locacao de veiculos|aluguel de veiculos/.test(n)) return 'locacao_veiculos'
-  if (/viagem fluvial|passagem fluvial|transporte fluvial/.test(n)) return 'viagens_fluviais'
-  if (isHospedagemTurismoText(n)) return 'hospedagem'
-  if (/agenciamento|agencia de viagens|servicos de viagens|agencia de turismo/.test(n)) return 'agenciamento'
+  var cats = categoriasPorTextoCompat(text)
+  if (cats.includes('Passagem aérea')) return 'passagem_aerea'
+  if (cats.includes('Rodoviário')) return 'passagens_rodoviarias'
+  if (cats.includes('Agenciamento')) return 'agenciamento'
+  if (cats.includes('Hospedagem')) return 'hospedagem'
+  if (cats.includes('Locação de veículos')) return 'locacao_veiculos'
+  if (cats.includes('Seguro viagem')) return 'seguro_viagem'
+  if (cats.includes('Viagens fluviais')) return 'viagens_fluviais'
   return 'nao relacionada'
 }
 
@@ -233,6 +238,7 @@ function classifySimple(item) {
   var ignorarTi = deveIgnorarPorTi(text)
   var pos = foundTerms(text, KEYWORDS_POSITIVE)
   var neg = foundTerms(text, KEYWORDS_NEGATIVE)
+  var categorias = categoriasPorTextoCompat(text)
   var categoria = categoriaPorTextoCompat(text)
   var categoriaNaoRelacionada = categoria === 'nao relacionada' || norm(categoria).indexOf('nao relacionada') >= 0
   if (ignorarTi) neg.push('TI/sistema/cloud')
@@ -260,6 +266,7 @@ function classifySimple(item) {
 
   return {
     categoria: categoria,
+    categorias: categorias,
     palavras: pos,
     negativos: neg,
     score: score,
@@ -456,6 +463,7 @@ function pncpRecordFromItem(item, arquivos, sourceName) {
     numero_processo: item.processo || item.numeroControlePNCP || '',
     objeto: item.objetoCompra || '',
     categoria: cls.categoria,
+    categorias: cls.categorias,
     data_publicacao: brDateTime(item.dataPublicacaoPncp || item.dataInclusao),
     data_atualizacao: brDateTime(item.dataAtualizacaoGlobal || item.dataAtualizacao),
     data_inicio_propostas: brDateTime(item.dataAberturaProposta),
@@ -611,6 +619,7 @@ async function collectPncp(options) {
             numero_processo: item.processo || '',
             objeto: item.objetoCompra || '',
             categoria: cls.categoria,
+            categorias: cls.categorias,
             data_publicacao: brDateTime(item.dataPublicacaoPncp || item.dataInclusao),
             data_atualizacao: brDateTime(item.dataAtualizacaoGlobal || item.dataAtualizacao),
             data_inicio_propostas: brDateTime(item.dataAberturaProposta),

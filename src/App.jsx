@@ -30,7 +30,7 @@ const PORTAIS = [
 ]
 
 const CATEGORIAS = [
-  "agenciamento", "passagens", "passagens_rodoviarias", "hospedagem",
+  "agenciamento", "passagem_aerea", "passagens_rodoviarias", "hospedagem",
   "locacao_veiculos", "seguro_viagem", "viagens_fluviais"
 ]
 
@@ -47,7 +47,8 @@ const UFS = [
 
 const CATEGORIA_LABEL = {
   agenciamento: "Agenciamento",
-  passagens: "Passagens",
+  passagem_aerea: "Passagem aérea",
+  passagens: "Passagem aérea",
   passagens_rodoviarias: "Rodoviário",
   hospedagem: "Hospedagem",
   locacao_veiculos: "Locação Veículos",
@@ -55,6 +56,26 @@ const CATEGORIA_LABEL = {
   viagens_fluviais: "Viagens Fluviais",
   ti_cloud: "TI/Cloud",
   nao_relacionada: "Não relacionada"
+}
+
+const CATEGORIA_ID_POR_LABEL = {
+  "agenciamento": "agenciamento",
+  "passagem aérea": "passagem_aerea",
+  "passagem aerea": "passagem_aerea",
+  "passagens": "passagem_aerea",
+  "passagens aéreas": "passagem_aerea",
+  "passagens aereas": "passagem_aerea",
+  "rodoviário": "passagens_rodoviarias",
+  "rodoviario": "passagens_rodoviarias",
+  "passagens rodoviárias": "passagens_rodoviarias",
+  "passagens rodoviarias": "passagens_rodoviarias",
+  "hospedagem": "hospedagem",
+  "locação veículos": "locacao_veiculos",
+  "locacao veiculos": "locacao_veiculos",
+  "locação de veículos": "locacao_veiculos",
+  "locacao de veiculos": "locacao_veiculos",
+  "seguro viagem": "seguro_viagem",
+  "viagens fluviais": "viagens_fluviais",
 }
 
 const STATUS_LABEL = {
@@ -314,18 +335,60 @@ function ehPassagemRodoviariaTexto(texto) {
     || ((/rodoviari[ao]s?|terrestres?|onibus/.test(texto)) && /passagens?|bilhetes?|agenciamento|reserva|emissao|remarcacao|cancelamento|fornecimento/.test(texto))
 }
 
+function normalizarCategoriaId(categoria) {
+  const c = textoNormalizado(categoria).trim()
+  return CATEGORIA_ID_POR_LABEL[c] || c
+}
+
+function textoCategoriasLicitacao(l) {
+  const itens = Array.isArray(l?.itens_pncp)
+    ? l.itens_pncp.map(it => [it.descricao, it.objeto, it.nome, it.criterio_julgamento].filter(Boolean).join(" "))
+    : []
+  const raw = l?.raw_data || {}
+  return textoNormalizado([
+    l?.categoria,
+    ...(Array.isArray(l?.categorias) ? l.categorias : []),
+    l?.objeto,
+    l?.descricao,
+    l?.resumo,
+    l?.termo_referencia,
+    l?.informacao_complementar,
+    l?.observacoes,
+    ...(Array.isArray(l?.palavras_chave) ? l.palavras_chave : [l?.palavras_chave]),
+    ...itens,
+    raw?.objetoCompra,
+    raw?.description,
+    raw?.informacaoComplementar,
+    raw?.rawSearch?.description,
+  ].filter(Boolean).join(" "))
+}
+
+function categoriasDaLicitacao(l) {
+  const categorias = new Set()
+  if (Array.isArray(l?.categorias)) {
+    l.categorias.forEach(c => {
+      const id = normalizarCategoriaId(c)
+      if (id) categorias.add(id)
+    })
+  }
+
+  const texto = textoCategoriasLicitacao(l)
+  if (/hospedagem (?:de )?(?:site|sitios|portal|sistema|pagina|website|web|aplicacao|software)|hospedagem em nuvem|infraestrutura de datacenter|computacao em nuvem|datacenter|data center|servidor\s+(?:dedicado|web|em nuvem|virtual|de aplicacao|de banco)|sistema informatizado|licenca de uso|suporte tecnico|manutencao corretiva|manutencao evolutiva/.test(texto)) categorias.add("ti_cloud")
+  if (/passagens? aere|bilhetes? aere|transporte aereo|passagens? nacionais|passagens? internacionais|passagens? aereas? nacionais|passagens? aereas? internacionais|agenciamento de viagens aereas|fornecimento de passagens? aereas|reserva.*passagens? aereas|emissao.*passagens? aereas|remarcacao.*passagens? aereas|cancelamento.*passagens? aereas/.test(texto)) categorias.add("passagem_aerea")
+  if (ehPassagemRodoviariaTexto(texto) || /transporte rodoviario|transporte terrestre/.test(texto)) categorias.add("passagens_rodoviarias")
+  if (/hospedagem|hoteis?|hotel|diarias?|reserva de hotel|reserva hoteleira|acomodacao|servicos? hoteleiros/.test(texto)) categorias.add("hospedagem")
+  if (/locacao de veiculos|aluguel de veiculos|veiculo locado|carros?|vans?|onibus locado|transporte com motorista|transporte sem motorista|frota|motorista|traslado|transfer/.test(texto)) categorias.add("locacao_veiculos")
+  if (/seguro viagem|seguro de viagem|assistencia viagem|assistencia medica internacional|seguro internacional|cobertura medica em viagem/.test(texto)) categorias.add("seguro_viagem")
+  if (/transporte fluvial|passagens? fluviais?|embarcacao|barco|lancha|balsa|transporte aquaviario|transporte hidroviario/.test(texto)) categorias.add("viagens_fluviais")
+  if (/agencia de viagens|agenciamento de viagens|servico de agenciamento|gestao de viagens|organizacao de viagens|intermediacao de servicos de viagem|reserva.*emissao.*remarcacao.*cancelamento/.test(texto)) categorias.add("agenciamento")
+
+  if (!categorias.size && /nao relacionada|não relacionada/.test(texto)) categorias.add("nao_relacionada")
+  if (!categorias.size && l?.categoria) categorias.add(normalizarCategoriaId(l.categoria))
+  return Array.from(categorias).filter(Boolean)
+}
+
 function categoriaDaLicitacao(l) {
-  const texto = textoNormalizado([l?.categoria, l?.objeto, l?.palavras_chave].flat().filter(Boolean).join(" "))
-  if (/hospedagem (?:de )?(?:site|sitios|portal|sistema|pagina|website|web|aplicacao|software)|hospedagem em nuvem|infraestrutura de datacenter|computacao em nuvem|datacenter|data center|servidor\s+(?:dedicado|web|em nuvem|virtual|de aplicacao|de banco)|sistema informatizado|licenca de uso|suporte tecnico|manutencao corretiva|manutencao evolutiva/.test(texto)) return "ti_cloud"
-  if (ehPassagemRodoviariaTexto(texto)) return "passagens_rodoviarias"
-  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes/.test(texto)) return "passagens"
-  if (/seguro viagem/.test(texto)) return "seguro_viagem"
-  if (/locacao de veiculos|aluguel de veiculos/.test(texto)) return "locacao_veiculos"
-  if (/viagem fluvial|passagem fluvial|transporte fluvial/.test(texto)) return "viagens_fluviais"
-  if (/hospedagem|hotel|diarias?/.test(texto)) return "hospedagem"
-  if (/agenciamento|agencia de viagens|servicos de viagens|agencia de turismo/.test(texto)) return "agenciamento"
-  if (/nao relacionada|não relacionada/.test(texto)) return "nao_relacionada"
-  return l?.categoria || ""
+  return categoriasDaLicitacao(l)[0] || ""
 }
 
 function pncpIdsDaLicitacao(l) {
@@ -1671,7 +1734,7 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
     const agora = new Date()
     return licitacoes.filter(l => {
       if (filtPortal    && l.portal           !== filtPortal)    return false
-      if (filtCategoria && categoriaDaLicitacao(l) !== filtCategoria) return false
+      if (filtCategoria && !categoriasDaLicitacao(l).includes(filtCategoria)) return false
       const modalidadeFiltro = modalidadeFiltroDaLicitacao(l)
       if (filtModalidade === "sem_credenciamento" && modalidadeFiltro === "credenciamento") return false
       if (filtModalidade && filtModalidade !== "sem_credenciamento" && modalidadeFiltro !== filtModalidade) return false
@@ -2008,7 +2071,12 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
                     {l.objeto}
                   </div>
                   <div style={{ marginTop: 3 }}>
-                    <Badge text={CATEGORIA_LABEL[categoriaDaLicitacao(l)] || categoriaDaLicitacao(l) || "—"} color="#6366f1" small />
+                    {categoriasDaLicitacao(l).slice(0, 3).map(cat => (
+                      <span key={cat} style={{ marginRight: 4 }}>
+                        <Badge text={CATEGORIA_LABEL[cat] || cat} color="#6366f1" small />
+                      </span>
+                    ))}
+                    {categoriasDaLicitacao(l).length > 3 && <span style={{ fontSize: 11, color: "#64748b" }}>+{categoriasDaLicitacao(l).length - 3}</span>}
                     {l.observacoes && <span style={{ marginLeft: 5, fontSize: 11, color: "#9ca3af" }}>💬</span>}
                   </div>
                 </td>
@@ -2418,7 +2486,7 @@ function PaginaDetalhe({ licitacao, onVoltar, onToggleRelevante, onObservacao, o
         <div style={{ gridColumn: "1 / -1", background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", padding: 20 }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <Badge text={licitacao.portal} color="#6366f1" />
-            {categoriaDaLicitacao(licitacao) && <Badge text={CATEGORIA_LABEL[categoriaDaLicitacao(licitacao)] || categoriaDaLicitacao(licitacao)} color="#0891b2" />}
+            {categoriasDaLicitacao(licitacao).map(cat => <Badge key={cat} text={CATEGORIA_LABEL[cat] || cat} color="#0891b2" />)}
             {licitacao.situacao   && <Badge text={licitacao.situacao} color={SITUACAO_COLOR[licitacao.situacao] || "#6b7280"} />}
             <Badge text={STATUS_LABEL[licitacao.status_triagem] || licitacao.status_triagem} color={STATUS_COLOR[licitacao.status_triagem] || "#94a3b8"} />
             {licitacao.relevante  && <Badge text="⭐ Relevante" color="#d97706" />}
