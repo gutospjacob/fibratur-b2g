@@ -4071,7 +4071,7 @@ export default function App() {
     setColetando(true)
     setLoading(true)
     try {
-      const coleta = await coletarLicitacoesReais({ dias: 14, paginas: 10 })
+      const coleta = await coletarLicitacoesReais({ dias: 14, paginas: 1 })
       if (!coleta.ok) {
         setFetchError(new Error(coleta.error || "Erro ao coletar licitações reais"))
       }

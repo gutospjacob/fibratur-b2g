@@ -558,9 +558,18 @@ var server = http.createServer(function(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
     var diasColeta = Number(parsed.query.dias || 14)
-    var paginasColeta = Number(parsed.query.paginas || 10)
-    console.log('[coletor] Iniciando coleta real: ' + diasColeta + ' dias, ' + paginasColeta + ' paginas por modalidade')
-    collectAll({ dias: diasColeta, maxPages: paginasColeta, docs: parsed.query.docs === '1' })
+    var paginasColeta = Number(parsed.query.paginas || 1)
+    var rapido = parsed.query.full !== '1'
+    console.log('[coletor] Iniciando coleta real: ' + diasColeta + ' dias, ' + paginasColeta + ' paginas, modo ' + (rapido ? 'rapido' : 'completo'))
+    collectAll({
+      dias: diasColeta,
+      maxPages: paginasColeta,
+      searchPages: Number(parsed.query.searchPages || paginasColeta || 2),
+      docs: parsed.query.docs === '1',
+      enrich: parsed.query.enrich === '1',
+      enrichLimit: Number(parsed.query.enrichLimit || 0),
+      fast: rapido,
+    })
       .then(function(out) {
         console.log('[coletor] OK: ' + out.total + ' licitacoes aderentes')
         res.writeHead(200)

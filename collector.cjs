@@ -491,8 +491,11 @@ function pncpRecordFromItem(item, arquivos, sourceName) {
 async function collectPncpSearch(options) {
   options = options || {}
   var docs = options.docs !== false
-  var maxPages = Number(options.searchPages || 2)
+  var maxPages = Number(options.searchPages || options.maxPages || 2)
   var terms = options.terms || PNCP_SEARCH_TERMS
+  var enrich = options.enrich === true
+  var enrichLimit = Number(options.enrichLimit || 0)
+  var enriched = 0
   var out = []
   var logs = []
 
@@ -515,15 +518,18 @@ async function collectPncpSearch(options) {
           var cls = classifySimple(item)
           if (cls.ignore) continue
           if (cls.score < 40 && cls.palavras.length === 0) continue
-          var detail = await fetchPncpCompraDetalhe(item)
-          if (detail) {
-            item = mergePncpDetalhe(item, detail)
-            cls = classifySimple(item)
-            if (cls.ignore) continue
+          if (enrich && (!enrichLimit || enriched < enrichLimit)) {
+            var detail = await fetchPncpCompraDetalhe(item)
+            if (detail) {
+              item = mergePncpDetalhe(item, detail)
+              cls = classifySimple(item)
+              if (cls.ignore) continue
+            }
+            var itens = await fetchPncpItens(item)
+            if (itens.length) item.itens_pncp = itens
+            enriched++
           }
-          var itens = await fetchPncpItens(item)
-          if (itens.length) item.itens_pncp = itens
-          var arquivos = docs ? await fetchPncpDocuments(item) : []
+          var arquivos = (docs && enrich) ? await fetchPncpDocuments(item) : []
           out.push(pncpRecordFromItem(item, arquivos, 'PNCP Search'))
         }
         if (json.total && pagina * 100 >= Number(json.total)) break
@@ -642,7 +648,19 @@ async function collectComprasGov(options) {
 }
 
 async function collectAll(options) {
+  options = options || {}
   var pncpSearch = await collectPncpSearch(options)
+  if (options.fast !== false) {
+    var bySearchId = {}
+    pncpSearch.registros.forEach(function(r) { bySearchId[r.id || r.unique_key || r.link_licitacao] = r })
+    pncpSearch.registros = Object.values(bySearchId)
+    return {
+      ok: true,
+      registros: pncpSearch.registros,
+      fontes: [pncpSearch],
+      total: pncpSearch.registros.length,
+    }
+  }
   var pncp = await collectPncp(options)
   var compras = await collectComprasGov(options)
   var byId = {}
