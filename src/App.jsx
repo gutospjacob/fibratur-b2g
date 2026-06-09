@@ -116,7 +116,12 @@ const TODAS_KEYWORDS = [
   "agenciamento de viagens",
   "agenciamento de passagens",
   "passagens aéreas",
+  "bilhete aéreo",
+  "emissão de bilhetes",
+  "emissão de passagens",
   "passagens rodoviárias",
+  "bilhete rodoviário",
+  "transporte rodoviário de passageiros",
   "passagens marítimas",
   "passagens fluviais",
   "passagens ferroviárias",
@@ -306,7 +311,7 @@ function textoNormalizado(valor) {
 function categoriaDaLicitacao(l) {
   const texto = textoNormalizado([l?.categoria, l?.objeto, l?.palavras_chave].flat().filter(Boolean).join(" "))
   if (/hospedagem (?:de )?(?:site|sitios|portal|sistema|pagina|website|web|aplicacao|software)|hospedagem em nuvem|infraestrutura de datacenter|computacao em nuvem|datacenter|data center|servidor\s+(?:dedicado|web|em nuvem|virtual|de aplicacao|de banco)|sistema informatizado|licenca de uso|suporte tecnico|manutencao corretiva|manutencao evolutiva/.test(texto)) return "ti_cloud"
-  if (/passagens? aere|passagens? rodovi|bilhete|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes/.test(texto)) return "passagens"
+  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|passagens? rodovi|bilhetes? rodovi|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes|transporte rodoviario de passageiros/.test(texto)) return "passagens"
   if (/seguro viagem/.test(texto)) return "seguro_viagem"
   if (/locacao de veiculos|aluguel de veiculos/.test(texto)) return "locacao_veiculos"
   if (/viagem fluvial|passagem fluvial|transporte fluvial/.test(texto)) return "viagens_fluviais"
@@ -2667,10 +2672,12 @@ function PaginaDetalhe({ licitacao, onVoltar, onToggleRelevante, onObservacao, o
 
 // ─── PÁGINA: CONFIGURAÇÕES ────────────────────────────────────────────────────
 const PALAVRAS_POSITIVAS = [
-  "agenciamento de viagens", "passagens aéreas", "passagens rodoviárias",
+  "agenciamento de viagens", "agenciamento de passagens", "passagens aéreas",
+  "bilhete aéreo", "emissão de bilhetes", "emissão de passagens",
+  "passagens nacionais", "passagens internacionais", "passagens rodoviárias",
+  "bilhete rodoviário", "transporte rodoviário de passageiros",
   "passagens marítimas", "passagens de navio", "passagens ferroviárias",
-  "viagens fluviais", "passagens nacionais", "passagens internacionais",
-  "seguro viagem", "hospedagem", "locação de veículos", "traslado", "turismo"
+  "viagens fluviais", "seguro viagem"
 ]
 const PALAVRAS_NEGATIVAS = ["shows", "congressos", "feira", "exposição", "festival"]
 

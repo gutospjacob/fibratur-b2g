@@ -2,37 +2,52 @@
   'agenciamento de viagens',
   'agencia de viagens',
   'agencia de turismo',
+  'agenciamento de passagens',
   'passagem aerea',
   'passagens aereas',
+  'passagens nacionais',
+  'passagens internacionais',
+  'passagem nacional',
+  'passagem internacional',
   'emissao de bilhetes',
+  'emissao de passagens',
   'bilhetes aereos',
+  'bilhete aereo',
   'reserva de passagens',
   'remarcacao de passagens',
   'cancelamento de passagens',
-  'hospedagem',
+  'passagem rodoviaria',
+  'passagens rodoviarias',
+  'bilhete rodoviario',
+  'bilhetes rodoviarios',
+  'transporte rodoviario de passageiros',
   'seguro viagem',
-  'locacao de veiculos',
-  'transporte terrestre',
   'fornecimento de passagens',
   'servicos de viagens',
-  'passagem',
-  'bilhete',
   'viagem',
 ]
 
 const https = require('https')
 
 const PNCP_SEARCH_TERMS = [
-  'agenciamento',
   'agenciamento de viagens',
+  'agenciamento de passagens',
   'passagens aereas',
   'passagem aerea',
+  'passagens nacionais',
+  'passagens internacionais',
   'emissao de bilhetes',
+  'emissao de passagens',
   'bilhetes aereos',
+  'bilhete aereo',
   'reserva de passagens',
+  'remarcacao de passagens',
+  'cancelamento de passagens',
+  'fornecimento de passagens',
+  'passagens rodoviarias',
+  'passagem rodoviaria',
+  'bilhete rodoviario',
   'seguro viagem',
-  'locacao de veiculos',
-  'hospedagem',
 ]
 
 const KEYWORDS_NEGATIVE = [
@@ -133,7 +148,7 @@ function deveIgnorarPorModalidade(text) {
 
 function deveIgnorarPorEscopo(text) {
   var n = norm(text)
-  return /construcao|obra(s)? de engenharia|servicos? de engenharia|engenharia civil|reforma|ampliacao|retrofit|pavimentacao|passarela|quadra|ginasio|creche|pre-escola|escola|posto de saude|residencial|modulos? padronizados|equipamentos urbanisticos/.test(n)
+  return /construcao|obra(s)? de engenharia|servicos? de engenharia|engenharia civil|reforma|ampliacao|retrofit|pavimentacao|passarela|passagem molhada|passagem de concreto|passagem elevada|passagem inferior|passagem superior|quadra|ginasio|creche|pre-escola|escola|posto de saude|residencial|modulos? padronizados|equipamentos urbanisticos/.test(n)
 }
 
 function isHospedagemTurismoText(n) {
@@ -145,7 +160,8 @@ function isHospedagemTurismoText(n) {
 function categoriaPorTexto(text) {
   var n = norm(text)
   var cats = []
-  if (/passagens? aere|bilhete/.test(n)) cats.push('passagens aéreas')
+  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais/.test(n)) cats.push('passagens aéreas')
+  if (/passagens? rodovi|bilhetes? rodovi|transporte rodoviario de passageiros/.test(n)) cats.push('passagens rodoviárias')
   if (/agenciamento|agencia de viagens|servicos de viagens|agencia de turismo/.test(n)) cats.push('agenciamento de viagens')
   if (isHospedagemTurismoText(n)) cats.push('hospedagem')
   if (/seguro viagem/.test(n)) cats.push('seguro viagem')
@@ -157,7 +173,7 @@ function categoriaPorTexto(text) {
 
 function categoriaPorTextoCompat(text) {
   var n = norm(text)
-  if (/passagens? aere|passagens? rodovi|bilhete|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes/.test(n)) return 'passagens'
+  if (/passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais|passagens? rodovi|bilhetes? rodovi|reserva de passagens|fornecimento de passagens|emissao de passagens|emissao de bilhetes|transporte rodoviario de passageiros/.test(n)) return 'passagens'
   if (/seguro viagem/.test(n)) return 'seguro_viagem'
   if (/locacao de veiculos|aluguel de veiculos/.test(n)) return 'locacao_veiculos'
   if (/viagem fluvial|passagem fluvial|transporte fluvial/.test(n)) return 'viagens_fluviais'
@@ -212,7 +228,9 @@ function classifySimple(item) {
   if (ignorarEscopo) neg.push('obra/engenharia/fora do turismo')
   var score = 20
   score += Math.min(pos.length * 16, 55)
-  if (/agenciamento de viagens|agencia de viagens|passagens? aere/.test(norm(text))) score += 15
+  var nText = norm(text)
+  if (/agenciamento de viagens|agencia de viagens|agenciamento de passagens|passagens? aere|bilhetes? aere|passagens? nacionais|passagens? internacionais/.test(nText)) score += 20
+  if (/passagens? rodovi|bilhetes? rodovi|transporte rodoviario de passageiros/.test(nText)) score += 15
   if (item.valorTotalEstimado || item.valorTotalHomologado) score += 5
   if (item.dataEncerramentoProposta && new Date(item.dataEncerramentoProposta) > new Date()) score += 10
   score -= Math.min(neg.length * 12, 45)
