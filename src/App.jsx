@@ -3253,14 +3253,16 @@ function BarraFunil({ label, valor, max, cor }) {
   )
 }
 
-function CardResumo({ titulo, valor, sub, cor, bg = "#fff", borda }) {
+function CardResumo({ titulo, valor, sub, cor, bg = "#fff", borda, onClick, ativo }) {
   return (
-    <div style={{
+    <div onClick={onClick} style={{
       padding: 14,
       background: bg,
       borderRadius: 8,
-      border: `1px solid ${borda || cor + "35"}`,
+      border: ativo ? `2px solid ${cor}` : `1px solid ${borda || cor + "35"}`,
       borderLeft: `4px solid ${cor}`,
+      cursor: onClick ? "pointer" : "default",
+      boxShadow: ativo ? `0 0 0 3px ${cor}20` : "none",
     }}>
       <div style={{ fontSize: 11, fontWeight: 800, color: cor, textTransform: "uppercase", letterSpacing: 0.4 }}>
         {titulo}
@@ -3315,8 +3317,127 @@ function TopList({ titulo, emoji, dados, cor = "#1d4ed8" }) {
 }
 
 function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanalisarPendentes, reanaliseFila, onCancelarReanalise }) {
-  const stats = useMemo(() => calcularStats(licitacoes), [licitacoes])
   const [modoFunil, setModoFunil] = useState("historico")
+  const [dashFiltros, setDashFiltros] = useState({
+    periodo: "",
+    campoData: "data_fim_propostas",
+    categoria: "",
+    portal: "",
+    uf: "",
+    busca: "",
+    modalidade: "",
+    situacao: "",
+    status: "",
+    motivo: "",
+    financeiro: "",
+    valor: "",
+    credenciamento: "",
+  })
+  const [drill, setDrill] = useState(null)
+
+  const setFiltroDash = (campo, valor) => {
+    setDashFiltros(f => ({ ...f, [campo]: valor }))
+    setDrill(null)
+  }
+
+  const participouHistorico = l => !!l.foi_participada || !!l.participou || ["participando", "ganhamos", "perdemos"].includes(l.status_triagem || "")
+  const analisadaHistorico = l => !!l.foi_analisada || !!l.analisada || !!l.analisado_em || !!l.analises_pdf || ["em_analise", "participando", "ganhamos", "perdemos"].includes(l.status_triagem || "")
+  const emAbertoAtual = l => ["novo", "amanha", "em_analise", "participando"].includes(l.status_triagem || "novo")
+  const valorLicitacao = l => parseValorBR(l.valor_estimado)
+  const motivoDescarte = l => (l.motivo_descarte || l.auto_descartado_motivo || "Sem motivo").toString().trim()
+  const portalDash = l => portalDeDisputa(l)
+  const dataBase = l => parseBrDateTime(l[dashFiltros.campoData]) || parseBrDateTime(l.data_fim_propostas) || parseBrDateTime(l.data_sessao)
+  const agendaGrupo = l => {
+    const d = parseBrDateTime(l.data_fim_propostas) || parseBrDateTime(l.data_sessao)
+    if (!d) return "Sem data identificada"
+    const hoje = new Date()
+    const ini = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+    const fimHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59)
+    if (d < ini) return "Já ocorreram"
+    if (d <= fimHoje) return "Vencem hoje"
+    const dias = Math.ceil((d - fimHoje) / 86400000)
+    if (dias <= 3) return "Vencem em até 3 dias"
+    if (dias <= 7) return "Vencem em até 7 dias"
+    return "Vencem em mais de 7 dias"
+  }
+
+  const opcoesPortal = useMemo(() => Array.from(new Set(licitacoes.map(portalDash).filter(Boolean))).sort(), [licitacoes])
+  const opcoesMotivo = useMemo(() => Array.from(new Set(licitacoes.filter(l => (l.status_triagem || "") === "descartado").map(motivoDescarte).filter(Boolean))).sort(), [licitacoes])
+  const opcoesSituacao = useMemo(() => Array.from(new Set(licitacoes.map(l => l.situacao || l.fase_atual).filter(Boolean))).sort(), [licitacoes])
+
+  const licitacoesFiltradas = useMemo(() => {
+    const agora = new Date()
+    const hojeIni = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0)
+    const hojeFim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59)
+    const periodoOk = l => {
+      if (!dashFiltros.periodo) return true
+      const d = dataBase(l)
+      if (!d) return dashFiltros.periodo === "sem_data"
+      if (dashFiltros.periodo === "hoje") return d >= hojeIni && d <= hojeFim
+      if (dashFiltros.periodo === "3d") return d >= hojeIni && d <= new Date(hojeFim.getTime() + 3 * 86400000)
+      if (dashFiltros.periodo === "7d") return d >= hojeIni && d <= new Date(hojeFim.getTime() + 7 * 86400000)
+      if (dashFiltros.periodo === "30d") return d >= hojeIni && d <= new Date(hojeFim.getTime() + 30 * 86400000)
+      if (dashFiltros.periodo === "passadas") return d < hojeIni
+      return true
+    }
+    return licitacoes.filter(l => {
+      if (!periodoOk(l)) return false
+      if (dashFiltros.categoria && !categoriasDaLicitacao(l).includes(dashFiltros.categoria)) return false
+      if (dashFiltros.portal && portalDash(l) !== dashFiltros.portal) return false
+      if (dashFiltros.uf && l.uf !== dashFiltros.uf) return false
+      if (dashFiltros.busca) {
+        const q = textoNormalizado(dashFiltros.busca)
+        const texto = textoNormalizado([l.orgao, l.municipio, l.objeto, l.num_edital, l.numero_processo].filter(Boolean).join(" "))
+        if (!texto.includes(q)) return false
+      }
+      if (dashFiltros.modalidade && modalidadeFiltroDaLicitacao(l) !== dashFiltros.modalidade) return false
+      if (dashFiltros.situacao && (l.situacao || l.fase_atual || "") !== dashFiltros.situacao) return false
+      if (dashFiltros.status && (l.status_triagem || "novo") !== dashFiltros.status) return false
+      if (dashFiltros.motivo && motivoDescarte(l) !== dashFiltros.motivo) return false
+      if (dashFiltros.financeiro === "indices" && !l.tem_indices_financeiros) return false
+      if (dashFiltros.financeiro === "pl" && !l.tem_pl_minimo) return false
+      if (dashFiltros.financeiro === "criterio" && !l.tem_indices_financeiros && !l.tem_pl_minimo) return false
+      if (dashFiltros.financeiro === "sem_criterio" && (l.tem_indices_financeiros || l.tem_pl_minimo)) return false
+      if (dashFiltros.valor === "com" && valorLicitacao(l) == null) return false
+      if (dashFiltros.valor === "sem" && valorLicitacao(l) != null) return false
+      const ehCred = modalidadeFiltroDaLicitacao(l) === "credenciamento"
+      if (dashFiltros.credenciamento === "sim" && !ehCred) return false
+      if (dashFiltros.credenciamento === "nao" && ehCred) return false
+      return true
+    })
+  }, [licitacoes, dashFiltros])
+
+  const aplicarDrill = (lista) => {
+    if (!drill) return lista
+    return lista.filter(l => {
+      if (drill.tipo === "funil") {
+        if (drill.valor === "Total") return true
+        if (drill.valor === "Analisadas") return modoFunil === "historico" ? analisadaHistorico(l) : (l.status_triagem || "") === "em_analise"
+        if (drill.valor === "Participadas") return modoFunil === "historico" ? participouHistorico(l) : (l.status_triagem || "") === "participando"
+        if (drill.valor === "Ganhas") return (l.status_triagem || "") === "ganhamos"
+        if (drill.valor === "Perdidas") return (l.status_triagem || "") === "perdemos"
+        if (drill.valor === "Descartadas") return (l.status_triagem || "") === "descartado"
+        if (drill.valor === "Em aberto") return emAbertoAtual(l)
+      }
+      if (drill.tipo === "motivo") return (l.status_triagem || "") === "descartado" && motivoDescarte(l) === drill.valor
+      if (drill.tipo === "categoria") return categoriasDaLicitacao(l).includes(drill.valor)
+      if (drill.tipo === "agenda") return agendaGrupo(l) === drill.valor
+      if (drill.tipo === "uf") return l.uf === drill.valor
+      if (drill.tipo === "portal") return portalDash(l) === drill.valor
+      if (drill.tipo === "valor") {
+        if (drill.valor === "total") return valorLicitacao(l) != null
+        if (drill.valor === "analisado") return analisadaHistorico(l) && valorLicitacao(l) != null
+        if (drill.valor === "participado") return participouHistorico(l) && valorLicitacao(l) != null
+        if (drill.valor === "descartado") return (l.status_triagem || "") === "descartado" && valorLicitacao(l) != null
+        if (drill.valor === "aberto") return emAbertoAtual(l) && valorLicitacao(l) != null
+        if (drill.valor === "sem") return valorLicitacao(l) == null
+      }
+      return true
+    })
+  }
+
+  const stats = useMemo(() => calcularStats(licitacoesFiltradas), [licitacoesFiltradas])
+  const listaDetalhada = useMemo(() => aplicarDrill(licitacoesFiltradas), [licitacoesFiltradas, drill, modoFunil])
 
   if (licitacoes.length === 0) {
     return (
@@ -3328,15 +3449,10 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
     )
   }
 
-  const valorTotal = filtro => licitacoes.reduce((acc, l) => {
+  const valorTotal = filtro => licitacoesFiltradas.reduce((acc, l) => {
     if (!filtro(l)) return acc
     return acc + (parseValorBR(l.valor_estimado) || 0)
   }, 0)
-  const semValor = filtro => licitacoes.filter(l => filtro(l) && parseValorBR(l.valor_estimado) == null).length
-  const participouHistorico = l => !!l.foi_participada || !!l.participou || ["participando", "ganhamos", "perdemos"].includes(l.status_triagem || "")
-  const analisadaHistorico = l => !!l.foi_analisada || !!l.analisada || !!l.analisado_em || !!l.analises_pdf || ["em_analise", "participando", "ganhamos", "perdemos"].includes(l.status_triagem || "")
-  const statusAtual = s => l => (l.status_triagem || "novo") === s
-  const emAbertoAtual = l => ["novo", "amanha", "em_analise", "participando"].includes(l.status_triagem || "novo")
   const etapasHistorico = [
     { nome: "Total", qtd: stats.total, pct: 100, valor: stats.totalValorTodas, sub: "base importada", cor: "#2563eb" },
     { nome: "Analisadas", qtd: stats.analisadasHistoricoTotal, pct: stats.taxaAnalise, valor: valorTotal(analisadaHistorico), sub: `${stats.taxaAnalise}% do total`, cor: "#7c3aed" },
@@ -3353,9 +3469,149 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
     { nome: "Ganhas", qtd: stats.porStatus.ganhamos || 0, pct: stats.total ? Math.round(((stats.porStatus.ganhamos || 0) / stats.total) * 100) : 0, valor: stats.valorPorStatus.ganhamos || 0, sub: "status atual", cor: "#059669" },
     { nome: "Perdidas", qtd: stats.porStatus.perdemos || 0, pct: stats.total ? Math.round(((stats.porStatus.perdemos || 0) / stats.total) * 100) : 0, valor: stats.valorPorStatus.perdemos || 0, sub: "status atual", cor: "#dc2626" },
     { nome: "Descartadas", qtd: stats.porStatus.descartado || 0, pct: stats.taxaDescarte, valor: stats.valorPorStatus.descartado || 0, sub: "status atual", cor: STATUS_COLOR.descartado },
-    { nome: "Em aberto", qtd: licitacoes.filter(emAbertoAtual).length, pct: stats.total ? Math.round((licitacoes.filter(emAbertoAtual).length / stats.total) * 100) : 0, valor: stats.valorAberto, sub: "Novo, Amanhã, Em análise e Participando", cor: "#2563eb" },
+    { nome: "Em aberto", qtd: licitacoesFiltradas.filter(emAbertoAtual).length, pct: stats.total ? Math.round((licitacoesFiltradas.filter(emAbertoAtual).length / stats.total) * 100) : 0, valor: stats.valorAberto, sub: "Novo, Amanhã, Em análise e Participando", cor: "#2563eb" },
   ]
   const etapas = modoFunil === "historico" ? etapasHistorico : etapasAtual
+
+  const somaLista = lista => lista.reduce((acc, l) => acc + (valorLicitacao(l) || 0), 0)
+  const contarPor = (lista, fn) => {
+    const mapa = new Map()
+    lista.forEach(l => {
+      const chave = fn(l) || "Não informado"
+      mapa.set(chave, (mapa.get(chave) || 0) + 1)
+    })
+    return Array.from(mapa.entries()).sort((a, b) => b[1] - a[1])
+  }
+  const valorPor = (lista, fn) => {
+    const mapa = new Map()
+    lista.forEach(l => {
+      const chave = fn(l) || "Não informado"
+      mapa.set(chave, (mapa.get(chave) || 0) + (valorLicitacao(l) || 0))
+    })
+    return mapa
+  }
+
+  const motivosDescarte = (() => {
+    const descartadas = licitacoesFiltradas.filter(l => (l.status_triagem || "") === "descartado")
+    const valores = valorPor(descartadas, motivoDescarte)
+    return contarPor(descartadas, motivoDescarte).map(([motivo, qtd]) => ({
+      motivo,
+      qtd,
+      pct: descartadas.length ? Math.round((qtd / descartadas.length) * 100) : 0,
+      valor: valores.get(motivo) || 0,
+    }))
+  })()
+
+  const analiseCategorias = CATEGORIAS.map(cat => {
+    const lista = licitacoesFiltradas.filter(l => categoriasDaLicitacao(l).includes(cat))
+    const analisadas = lista.filter(analisadaHistorico)
+    const participadas = lista.filter(participouHistorico)
+    const descartadas = lista.filter(l => (l.status_triagem || "") === "descartado")
+    const abertas = lista.filter(emAbertoAtual)
+    return {
+      cat,
+      label: CATEGORIA_LABEL[cat] || cat,
+      total: lista.length,
+      analisadas: analisadas.length,
+      participadas: participadas.length,
+      descartadas: descartadas.length,
+      abertas: abertas.length,
+      taxaParticipacao: analisadas.length ? Math.round((participadas.length / analisadas.length) * 100) : 0,
+      taxaDescarte: lista.length ? Math.round((descartadas.length / lista.length) * 100) : 0,
+      valorTotal: somaLista(lista),
+      valorAberto: somaLista(abertas),
+    }
+  }).filter(c => c.total > 0)
+
+  const gruposAgenda = [
+    "Já ocorreram",
+    "Vencem hoje",
+    "Vencem em até 3 dias",
+    "Vencem em até 7 dias",
+    "Vencem em mais de 7 dias",
+    "Sem data identificada",
+  ].map(nome => {
+    const lista = licitacoesFiltradas.filter(l => agendaGrupo(l) === nome)
+    return { nome, qtd: lista.length, valor: somaLista(lista) }
+  })
+
+  const oportunidadesAbertas = licitacoesFiltradas
+    .filter(emAbertoAtual)
+    .filter(l => agendaGrupo(l) !== "Já ocorreram")
+    .sort((a, b) => {
+      const da = parseBrDateTime(a.data_fim_propostas) || parseBrDateTime(a.data_sessao) || new Date(8640000000000000)
+      const db = parseBrDateTime(b.data_fim_propostas) || parseBrDateTime(b.data_sessao) || new Date(8640000000000000)
+      return da - db
+    })
+
+  const valorAnalisado = somaLista(licitacoesFiltradas.filter(analisadaHistorico))
+  const valorParticipado = somaLista(licitacoesFiltradas.filter(participouHistorico))
+  const valorDescartado = somaLista(licitacoesFiltradas.filter(l => (l.status_triagem || "") === "descartado"))
+  const valorAberto = somaLista(licitacoesFiltradas.filter(emAbertoAtual))
+  const comValorLista = licitacoesFiltradas.filter(l => valorLicitacao(l) != null)
+  const mediaValor = comValorLista.length ? Math.round(somaLista(comValorLista) / comValorLista.length) : 0
+
+  const insights = (() => {
+    const lista = []
+    const maiorMotivo = motivosDescarte[0]
+    const maiorCategoria = analiseCategorias[0]
+    const hoje = gruposAgenda.find(g => g.nome === "Vencem hoje")
+    if (hoje?.qtd) lista.push(`${hoje.qtd} licitações filtradas vencem hoje; priorize análise antes de qualquer coleta nova.`)
+    if (maiorMotivo?.qtd) lista.push(`Principal motivo de descarte: ${maiorMotivo.motivo} (${maiorMotivo.qtd}, ${maiorMotivo.pct}%).`)
+    if (maiorCategoria?.total) lista.push(`Categoria com mais volume: ${maiorCategoria.label} (${maiorCategoria.total} licitações).`)
+    if (stats.semValorTotal) lista.push(`${stats.semValorTotal} licitações estão sem valor informado e continuam entrando no funil.`)
+    if (!lista.length) lista.push("Aplique filtros ou avance triagens para gerar leituras mais úteis.")
+    return lista
+  })()
+
+  const inputStyle = {
+    padding: "8px 10px",
+    borderRadius: 6,
+    border: "1px solid #cbd5e1",
+    fontSize: 13,
+    color: "#0f172a",
+    background: "#fff",
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+    width: "100%",
+  }
+
+  const limparDashboard = () => {
+    setDashFiltros({
+      periodo: "",
+      campoData: "data_fim_propostas",
+      categoria: "",
+      portal: "",
+      uf: "",
+      busca: "",
+      modalidade: "",
+      situacao: "",
+      status: "",
+      motivo: "",
+      financeiro: "",
+      valor: "",
+      credenciamento: "",
+    })
+    setDrill(null)
+  }
+
+  function BarraDrill({ label, qtd, pct, valor, cor, onClick, ativo }) {
+    return (
+      <button onClick={onClick} style={{ textAlign: "left", width: "100%", border: ativo ? `2px solid ${cor}` : "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: 10, cursor: "pointer" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, fontWeight: 850, color: "#0f172a" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+          <span style={{ color: cor }}>{qtd}</span>
+        </div>
+        <div style={{ height: 7, background: "#f1f5f9", borderRadius: 99, overflow: "hidden", marginTop: 7 }}>
+          <div style={{ width: `${Math.max(3, pct || 0)}%`, height: "100%", background: cor }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", marginTop: 5 }}>
+          <span>{pct || 0}%</span>
+          <span>{formatBRL(valor || 0)}</span>
+        </div>
+      </button>
+    )
+  }
 
   function GrupoPrazo({ titulo, items, cor, bg, forte }) {
     return (
@@ -3383,7 +3639,82 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+      <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, minWidth: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0f172a" }}>Dashboard CRM</h2>
+            <p style={{ margin: "3px 0 0", color: "#64748b", fontSize: 12 }}>
+              {licitacoesFiltradas.length} licitações filtradas de {licitacoes.length} no total
+              {drill && ` · detalhe: ${drill.valor}`}
+            </p>
+          </div>
+          <button onClick={limparDashboard} style={btnStyle("#f8fafc", "#334155")}>Limpar filtros</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+          <input value={dashFiltros.busca} onChange={e => setFiltroDash("busca", e.target.value)} placeholder="Buscar órgão, município, objeto..." style={inputStyle} />
+          <select value={dashFiltros.periodo} onChange={e => setFiltroDash("periodo", e.target.value)} style={inputStyle}>
+            <option value="">Qualquer período</option>
+            <option value="hoje">Vencem hoje</option>
+            <option value="3d">Até 3 dias</option>
+            <option value="7d">Até 7 dias</option>
+            <option value="30d">Até 30 dias</option>
+            <option value="passadas">Já ocorreram</option>
+            <option value="sem_data">Sem data</option>
+          </select>
+          <select value={dashFiltros.campoData} onChange={e => setFiltroDash("campoData", e.target.value)} style={inputStyle}>
+            <option value="data_fim_propostas">Data base: fim propostas</option>
+            <option value="data_sessao">Data base: sessão</option>
+            <option value="data_publicacao">Data base: publicação</option>
+          </select>
+          <select value={dashFiltros.categoria} onChange={e => setFiltroDash("categoria", e.target.value)} style={inputStyle}>
+            <option value="">Todas categorias</option>
+            {CATEGORIAS.map(c => <option key={c} value={c}>{CATEGORIA_LABEL[c] || c}</option>)}
+          </select>
+          <select value={dashFiltros.portal} onChange={e => setFiltroDash("portal", e.target.value)} style={inputStyle}>
+            <option value="">Todos portais de participação</option>
+            {opcoesPortal.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={dashFiltros.uf} onChange={e => setFiltroDash("uf", e.target.value)} style={inputStyle}>
+            <option value="">Todas UFs</option>
+            {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+          </select>
+          <select value={dashFiltros.modalidade} onChange={e => setFiltroDash("modalidade", e.target.value)} style={inputStyle}>
+            <option value="">Todas modalidades</option>
+            {MODALIDADE_FILTROS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
+          <select value={dashFiltros.situacao} onChange={e => setFiltroDash("situacao", e.target.value)} style={inputStyle}>
+            <option value="">Todas situações</option>
+            {opcoesSituacao.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={dashFiltros.status} onChange={e => setFiltroDash("status", e.target.value)} style={inputStyle}>
+            <option value="">Todos status</option>
+            {STATUS_TRIAGEM.map(s => <option key={s} value={s}>{STATUS_LABEL[s] || s}</option>)}
+          </select>
+          <select value={dashFiltros.motivo} onChange={e => setFiltroDash("motivo", e.target.value)} style={inputStyle}>
+            <option value="">Todos motivos de descarte</option>
+            {opcoesMotivo.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={dashFiltros.financeiro} onChange={e => setFiltroDash("financeiro", e.target.value)} style={inputStyle}>
+            <option value="">Critérios financeiros</option>
+            <option value="criterio">Com critério financeiro</option>
+            <option value="indices">Com índices</option>
+            <option value="pl">Com PL mínimo</option>
+            <option value="sem_criterio">Sem critério financeiro</option>
+          </select>
+          <select value={dashFiltros.valor} onChange={e => setFiltroDash("valor", e.target.value)} style={inputStyle}>
+            <option value="">Com ou sem valor</option>
+            <option value="com">Com valor informado</option>
+            <option value="sem">Sem valor informado</option>
+          </select>
+          <select value={dashFiltros.credenciamento} onChange={e => setFiltroDash("credenciamento", e.target.value)} style={inputStyle}>
+            <option value="">Credenciamento: todos</option>
+            <option value="nao">Ocultar credenciamento</option>
+            <option value="sim">Somente credenciamento</option>
+          </select>
+        </div>
+      </section>
+
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
           <div>
@@ -3407,7 +3738,18 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
           {etapas.map(etapa => (
-            <div key={etapa.nome} style={{ padding: 12, borderRadius: 8, background: "#f8fafc", borderTop: `4px solid ${etapa.cor}` }}>
+            <div
+              key={etapa.nome}
+              onClick={() => setDrill({ tipo: "funil", valor: etapa.nome })}
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                background: "#f8fafc",
+                border: drill?.tipo === "funil" && drill?.valor === etapa.nome ? `2px solid ${etapa.cor}` : "1px solid transparent",
+                borderTop: `4px solid ${etapa.cor}`,
+                cursor: "pointer",
+              }}
+            >
               <div style={{ fontSize: 12, fontWeight: 850, color: "#334155", textTransform: "uppercase" }}>{etapa.nome}</div>
               <div style={{ marginTop: 6, display: "flex", alignItems: "baseline", gap: 6 }}>
                 <span style={{ fontSize: 26, fontWeight: 900, color: "#0f172a" }}>{etapa.qtd}</span>
@@ -3423,9 +3765,161 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 900, color: "#0f172a" }}>Valor do pipeline</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <CardResumo titulo="Pipeline em aberto" valor={formatBRL(stats.valorAberto)} sub={`${stats.comValor} com valor · ${stats.semValorAberto} sem valor`} cor="#2563eb" bg="#eff6ff" />
-          <CardResumo titulo="Valor total" valor={formatBRL(stats.totalValorTodas)} sub={`${stats.comValorTotal} com valor informado`} cor="#0f766e" bg="#f0fdfa" />
-          <CardResumo titulo="Sem valor informado" valor={stats.semValorTotal} sub="seguem nas contagens e no funil" cor="#64748b" bg="#f8fafc" />
+          <CardResumo titulo="Valor total" valor={formatBRL(stats.totalValorTodas)} sub={`${stats.comValorTotal} com valor informado`} cor="#0f766e" bg="#f0fdfa" onClick={() => setDrill({ tipo: "valor", valor: "total" })} ativo={drill?.tipo === "valor" && drill?.valor === "total"} />
+          <CardResumo titulo="Valor analisado" valor={formatBRL(valorAnalisado)} sub="passou por análise" cor="#7c3aed" bg="#f5f3ff" onClick={() => setDrill({ tipo: "valor", valor: "analisado" })} ativo={drill?.tipo === "valor" && drill?.valor === "analisado"} />
+          <CardResumo titulo="Valor participado" valor={formatBRL(valorParticipado)} sub="licitações participadas" cor="#16a34a" bg="#f0fdf4" onClick={() => setDrill({ tipo: "valor", valor: "participado" })} ativo={drill?.tipo === "valor" && drill?.valor === "participado"} />
+          <CardResumo titulo="Valor descartado" valor={formatBRL(valorDescartado)} sub="status descartado" cor="#dc2626" bg="#fef2f2" onClick={() => setDrill({ tipo: "valor", valor: "descartado" })} ativo={drill?.tipo === "valor" && drill?.valor === "descartado"} />
+          <CardResumo titulo="Pipeline em aberto" valor={formatBRL(valorAberto)} sub={`${stats.comValor} com valor · ${stats.semValorAberto} sem valor`} cor="#2563eb" bg="#eff6ff" onClick={() => setDrill({ tipo: "valor", valor: "aberto" })} ativo={drill?.tipo === "valor" && drill?.valor === "aberto"} />
+          <CardResumo titulo="Sem valor informado" valor={stats.semValorTotal} sub="não sai das contagens" cor="#64748b" bg="#f8fafc" onClick={() => setDrill({ tipo: "valor", valor: "sem" })} ativo={drill?.tipo === "valor" && drill?.valor === "sem"} />
+          <CardResumo titulo="Média com valor" valor={formatBRL(mediaValor)} sub={`${comValorLista.length} licitações com valor`} cor="#0f172a" bg="#fff" />
+        </div>
+      </section>
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 900, color: "#0f172a" }}>Insights automáticos</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {insights.map((txt, idx) => (
+              <div key={idx} style={{ padding: 10, background: "#f8fafc", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 13, color: "#334155" }}>{txt}</div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 900, color: "#0f172a" }}>Agenda resumida</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+            {gruposAgenda.map(g => (
+              <BarraDrill
+                key={g.nome}
+                label={g.nome}
+                qtd={g.qtd}
+                pct={licitacoesFiltradas.length ? Math.round((g.qtd / licitacoesFiltradas.length) * 100) : 0}
+                valor={g.valor}
+                cor={g.nome === "Vencem hoje" ? "#dc2626" : g.nome === "Já ocorreram" ? "#64748b" : "#2563eb"}
+                onClick={() => setDrill({ tipo: "agenda", valor: g.nome })}
+                ativo={drill?.tipo === "agenda" && drill?.valor === g.nome}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 900, color: "#0f172a" }}>Análise por categoria</h2>
+          <div style={{ display: "grid", gap: 8 }}>
+            {analiseCategorias.map(c => (
+              <button key={c.cat} onClick={() => setDrill({ tipo: "categoria", valor: c.cat })} style={{ textAlign: "left", border: drill?.tipo === "categoria" && drill?.valor === c.cat ? "2px solid #2563eb" : "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: 11, cursor: "pointer" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
+                  <strong style={{ color: "#0f172a", fontSize: 13 }}>{c.label}</strong>
+                  <span style={{ color: "#2563eb", fontSize: 13, fontWeight: 900 }}>{c.total}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginTop: 8, fontSize: 11, color: "#475569" }}>
+                  <span>Analisadas: <b>{c.analisadas}</b></span>
+                  <span>Participadas: <b>{c.participadas}</b></span>
+                  <span>Descartadas: <b>{c.descartadas}</b></span>
+                  <span>Abertas: <b>{c.abertas}</b></span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8, fontSize: 11, color: "#64748b" }}>
+                  <span>Participação: <b>{c.taxaParticipacao}%</b></span>
+                  <span>Descarte: <b>{c.taxaDescarte}%</b></span>
+                  <span>Valor total: <b>{formatBRL(c.valorTotal)}</b></span>
+                  <span>Aberto: <b>{formatBRL(c.valorAberto)}</b></span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 900, color: "#0f172a" }}>Motivos de descarte</h2>
+          <div style={{ display: "grid", gap: 8 }}>
+            {motivosDescarte.length === 0 && <div style={{ color: "#94a3b8", fontSize: 13 }}>Nenhum descarte nos filtros atuais.</div>}
+            {motivosDescarte.map(m => (
+              <BarraDrill
+                key={m.motivo}
+                label={m.motivo}
+                qtd={m.qtd}
+                pct={m.pct}
+                valor={m.valor}
+                cor="#dc2626"
+                onClick={() => setDrill({ tipo: "motivo", valor: m.motivo })}
+                ativo={drill?.tipo === "motivo" && drill?.valor === m.motivo}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: "#0f172a" }}>Oportunidades em aberto</h2>
+          <span style={{ color: "#2563eb", fontSize: 13, fontWeight: 850 }}>{oportunidadesAbertas.length} abertas nos filtros atuais</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+          {oportunidadesAbertas.slice(0, 6).map(l => (
+            <button key={l.id} onClick={() => setDrill({ tipo: "funil", valor: "Em aberto" })} style={{ textAlign: "left", border: "1px solid #e5e7eb", background: "#f8fafc", borderRadius: 8, padding: 11, cursor: "pointer" }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.orgao || "—"}</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>{l.uf || "—"} · {CATEGORIA_LABEL[categoriasDaLicitacao(l)[0]] || "Sem categoria"}</div>
+              <div style={{ color: "#dc2626", fontSize: 12, fontWeight: 850, marginTop: 7 }}>Fim: {l.data_fim_propostas || "—"}</div>
+              <div style={{ color: "#0f766e", fontSize: 11, fontWeight: 800, marginTop: 2 }}>{formatBRL(valorLicitacao(l) || 0)}</div>
+            </button>
+          ))}
+          {oportunidadesAbertas.length === 0 && <div style={{ color: "#94a3b8", fontSize: 13 }}>Nenhuma oportunidade aberta neste recorte.</div>}
+        </div>
+      </section>
+
+      <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: "#0f172a" }}>Lista detalhada</h2>
+            <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b" }}>
+              {listaDetalhada.length} resultados após filtros{drill ? ` e detalhe "${drill.valor}"` : ""}
+            </p>
+          </div>
+          {drill && <button onClick={() => setDrill(null)} style={btnStyle("#eff6ff", "#1d4ed8")}>Limpar detalhe</button>}
+        </div>
+        <div style={{ overflowX: "auto", border: "1px solid #e5e7eb", borderRadius: 8, width: "100%", maxWidth: "100%" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100, fontSize: 12 }}>
+            <thead style={{ background: "#f8fafc", color: "#334155" }}>
+              <tr>
+                {["Órgão / Município", "UF", "Objeto / Categorias", "Portal participação", "Modalidade", "Valor", "Cronograma", "Situação", "Status", "Motivo", "Financ."].map(h => (
+                  <th key={h} style={{ padding: "10px 9px", textAlign: "left", borderBottom: "1px solid #e5e7eb", fontWeight: 850 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {listaDetalhada.slice(0, 100).map(l => (
+                <tr key={l.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  <td style={{ padding: 9, maxWidth: 210 }}>
+                    <div style={{ fontWeight: 850, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.orgao || "—"}</div>
+                    <div style={{ color: "#94a3b8", fontSize: 11 }}>{l.municipio || "—"} · {l.num_edital || "s/n"}</div>
+                  </td>
+                  <td style={{ padding: 9, fontWeight: 800 }}>{l.uf || "—"}</td>
+                  <td style={{ padding: 9, maxWidth: 300 }}>
+                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.objeto || "—"}</div>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                      {categoriasDaLicitacao(l).slice(0, 3).map(c => <span key={c} style={{ border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", borderRadius: 5, padding: "1px 5px", fontSize: 10, fontWeight: 800 }}>{CATEGORIA_LABEL[c] || c}</span>)}
+                    </div>
+                  </td>
+                  <td style={{ padding: 9 }}>{portalDash(l)}</td>
+                  <td style={{ padding: 9 }}>{l.modalidade || "—"}</td>
+                  <td style={{ padding: 9, fontWeight: 850 }}>{valorLicitacao(l) == null ? "—" : formatBRL(valorLicitacao(l))}</td>
+                  <td style={{ padding: 9 }}>
+                    <div style={{ color: "#dc2626", fontWeight: 850 }}>Fim: {l.data_fim_propostas || "—"}</div>
+                    <div style={{ color: "#2563eb" }}>Sessão: {l.data_sessao || "—"}</div>
+                  </td>
+                  <td style={{ padding: 9 }}>{l.situacao || l.fase_atual || "—"}</td>
+                  <td style={{ padding: 9, color: STATUS_COLOR[l.status_triagem || "novo"], fontWeight: 850 }}>{STATUS_LABEL[l.status_triagem || "novo"] || l.status_triagem || "Novo"}</td>
+                  <td style={{ padding: 9 }}>{(l.status_triagem || "") === "descartado" ? motivoDescarte(l) : "—"}</td>
+                  <td style={{ padding: 9 }}>{l.tem_indices_financeiros || l.tem_pl_minimo ? "Sim" : "—"}</td>
+                </tr>
+              ))}
+              {listaDetalhada.length === 0 && (
+                <tr><td colSpan={11} style={{ padding: 28, textAlign: "center", color: "#94a3b8" }}>Nenhuma licitação neste recorte.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 
