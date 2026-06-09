@@ -330,6 +330,25 @@ function textoNormalizado(valor) {
   return (valor || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 }
 
+function grupoMotivoDescarte(valor) {
+  const raw = (valor || "Sem motivo").toString().trim()
+  const t = textoNormalizado(raw)
+  if (!t || t === "sem motivo") return "Sem motivo"
+  if (/subcontrat|sub contrat|terceiriz/.test(t)) return "Não pode subcontratar"
+  if (/prazo|expir|encerrad|perdid|decurso|passou|vencid/.test(t)) return "Prazo perdido / encerrado"
+  if (/indice|indices|lg|lc|sg|ge|liquidez|solvencia|financeir/.test(t)) return "Pede índices financeiros"
+  if (/patrimonio|pl minimo|capital social|balanco/.test(t)) return "Pede patrimônio líquido mínimo"
+  if (/credenciamento|credenciar/.test(t)) return "Credenciamento"
+  if (/ti|cloud|sistema|software|informatiz|licenca de uso|hospedagem de sistema/.test(t)) return "TI / cloud / hospedagem de sistema"
+  if (/leilao|alienacao|venda de bem|imovel|veiculo usado/.test(t)) return "Leilão / alienação"
+  if (/fora.*escopo|nao relacionada|nao relacionado|sem relacao|construcao|obra|creche/.test(t)) return "Fora do escopo"
+  if (/document|certidao|habilitacao|exigencia|inviavel|regularidade/.test(t)) return "Exigência documental inviável"
+  if (/atestado|capacidade tecnica|tecnico incompat/.test(t)) return "Atestado técnico incompatível"
+  if (/regiao|logistica|distancia|localidade|local/.test(t)) return "Região / logística ruim"
+  if (/preco|margem|custo|baixo|inviavel economic/.test(t)) return "Preço ou margem ruim"
+  return raw
+}
+
 function ehPassagemRodoviariaTexto(texto) {
   return /passagens? rodovi|bilhetes? rodovi|passagens? terrestres?|bilhetes? terrestres?|passagens? de onibus|bilhetes? de onibus|fornecimento de passagens? terrestres?|agenciamento de passagens? terrestres?|transporte rodoviario de passageiros/.test(texto)
     || ((/rodoviari[ao]s?|terrestres?|onibus/.test(texto)) && /passagens?|bilhetes?|agenciamento|reserva|emissao|remarcacao|cancelamento|fornecimento/.test(texto))
@@ -3345,6 +3364,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
   const emAbertoAtual = l => ["novo", "amanha", "em_analise", "participando"].includes(l.status_triagem || "novo")
   const valorLicitacao = l => parseValorBR(l.valor_estimado)
   const motivoDescarte = l => (l.motivo_descarte || l.auto_descartado_motivo || "Sem motivo").toString().trim()
+  const motivoDescarteAgrupado = l => grupoMotivoDescarte(motivoDescarte(l))
   const portalDash = l => portalDeDisputa(l)
   const dataBase = l => parseBrDateTime(l[dashFiltros.campoData]) || parseBrDateTime(l.data_fim_propostas) || parseBrDateTime(l.data_sessao)
   const agendaGrupo = l => {
@@ -3362,7 +3382,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
   }
 
   const opcoesPortal = useMemo(() => Array.from(new Set(licitacoes.map(portalDash).filter(Boolean))).sort(), [licitacoes])
-  const opcoesMotivo = useMemo(() => Array.from(new Set(licitacoes.filter(l => (l.status_triagem || "") === "descartado").map(motivoDescarte).filter(Boolean))).sort(), [licitacoes])
+  const opcoesMotivo = useMemo(() => Array.from(new Set(licitacoes.filter(l => (l.status_triagem || "") === "descartado").map(motivoDescarteAgrupado).filter(Boolean))).sort(), [licitacoes])
   const opcoesSituacao = useMemo(() => Array.from(new Set(licitacoes.map(l => l.situacao || l.fase_atual).filter(Boolean))).sort(), [licitacoes])
 
   const licitacoesFiltradas = useMemo(() => {
@@ -3393,7 +3413,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
       if (dashFiltros.modalidade && modalidadeFiltroDaLicitacao(l) !== dashFiltros.modalidade) return false
       if (dashFiltros.situacao && (l.situacao || l.fase_atual || "") !== dashFiltros.situacao) return false
       if (dashFiltros.status && (l.status_triagem || "novo") !== dashFiltros.status) return false
-      if (dashFiltros.motivo && motivoDescarte(l) !== dashFiltros.motivo) return false
+      if (dashFiltros.motivo && motivoDescarteAgrupado(l) !== dashFiltros.motivo) return false
       if (dashFiltros.financeiro === "indices" && !l.tem_indices_financeiros) return false
       if (dashFiltros.financeiro === "pl" && !l.tem_pl_minimo) return false
       if (dashFiltros.financeiro === "criterio" && !l.tem_indices_financeiros && !l.tem_pl_minimo) return false
@@ -3419,7 +3439,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
         if (drill.valor === "Descartadas") return (l.status_triagem || "") === "descartado"
         if (drill.valor === "Em aberto") return emAbertoAtual(l)
       }
-      if (drill.tipo === "motivo") return (l.status_triagem || "") === "descartado" && motivoDescarte(l) === drill.valor
+      if (drill.tipo === "motivo") return (l.status_triagem || "") === "descartado" && motivoDescarteAgrupado(l) === drill.valor
       if (drill.tipo === "categoria") return categoriasDaLicitacao(l).includes(drill.valor)
       if (drill.tipo === "agenda") return agendaGrupo(l) === drill.valor
       if (drill.tipo === "uf") return l.uf === drill.valor
@@ -3493,8 +3513,8 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
 
   const motivosDescarte = (() => {
     const descartadas = licitacoesFiltradas.filter(l => (l.status_triagem || "") === "descartado")
-    const valores = valorPor(descartadas, motivoDescarte)
-    return contarPor(descartadas, motivoDescarte).map(([motivo, qtd]) => ({
+    const valores = valorPor(descartadas, motivoDescarteAgrupado)
+    return contarPor(descartadas, motivoDescarteAgrupado).map(([motivo, qtd]) => ({
       motivo,
       qtd,
       pct: descartadas.length ? Math.round((qtd / descartadas.length) * 100) : 0,
@@ -3911,7 +3931,16 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
                   </td>
                   <td style={{ padding: 9 }}>{l.situacao || l.fase_atual || "—"}</td>
                   <td style={{ padding: 9, color: STATUS_COLOR[l.status_triagem || "novo"], fontWeight: 850 }}>{STATUS_LABEL[l.status_triagem || "novo"] || l.status_triagem || "Novo"}</td>
-                  <td style={{ padding: 9 }}>{(l.status_triagem || "") === "descartado" ? motivoDescarte(l) : "—"}</td>
+                  <td style={{ padding: 9 }}>
+                    {(l.status_triagem || "") === "descartado" ? (
+                      <>
+                        <div style={{ fontWeight: 850, color: "#991b1b" }}>{motivoDescarteAgrupado(l)}</div>
+                        {motivoDescarte(l) !== motivoDescarteAgrupado(l) && (
+                          <div style={{ marginTop: 2, color: "#94a3b8", fontSize: 10 }}>{motivoDescarte(l)}</div>
+                        )}
+                      </>
+                    ) : "—"}
+                  </td>
                   <td style={{ padding: 9 }}>{l.tem_indices_financeiros || l.tem_pl_minimo ? "Sim" : "—"}</td>
                 </tr>
               ))}
