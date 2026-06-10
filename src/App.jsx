@@ -3349,7 +3349,7 @@ function TopList({ titulo, emoji, dados, cor = "#1d4ed8" }) {
 function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanalisarPendentes, reanaliseFila, onCancelarReanalise }) {
   const [modoFunil, setModoFunil] = useState("historico")
   const [dashFiltros, setDashFiltros] = useState({
-    periodo: "",
+    periodo: "ativas",
     campoData: "data_fim_propostas",
     categoria: "",
     portal: "",
@@ -3403,7 +3403,8 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
     const periodoOk = l => {
       if (!dashFiltros.periodo) return true
       const d = dataBase(l)
-      if (!d) return dashFiltros.periodo === "sem_data"
+      if (!d) return dashFiltros.periodo === "sem_data" || dashFiltros.periodo === "ativas"
+      if (dashFiltros.periodo === "ativas") return d >= hojeIni
       if (dashFiltros.periodo === "hoje") return d >= hojeIni && d <= hojeFim
       if (dashFiltros.periodo === "3d") return d >= hojeIni && d <= new Date(hojeFim.getTime() + 3 * 86400000)
       if (dashFiltros.periodo === "7d") return d >= hojeIni && d <= new Date(hojeFim.getTime() + 7 * 86400000)
@@ -3609,7 +3610,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
 
   const limparDashboard = () => {
     setDashFiltros({
-      periodo: "",
+      periodo: "ativas",
       campoData: "data_fim_propostas",
       categoria: "",
       portal: "",
@@ -3685,7 +3686,8 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
           <input value={dashFiltros.busca} onChange={e => setFiltroDash("busca", e.target.value)} placeholder="Buscar órgão, município, objeto..." style={inputStyle} />
           <select value={dashFiltros.periodo} onChange={e => setFiltroDash("periodo", e.target.value)} style={inputStyle}>
-            <option value="">Qualquer período</option>
+            <option value="ativas">Ativas / não ocorreram</option>
+            <option value="">Todas, incluindo passadas</option>
             <option value="hoje">Vencem hoje</option>
             <option value="3d">Até 3 dias</option>
             <option value="7d">Até 7 dias</option>
