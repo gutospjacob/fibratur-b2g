@@ -1749,6 +1749,16 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
     return null
   }, [filtData, filtDataDe, filtDataAte])
 
+  function participandoFixadoAteDiaSeguinte(l, agora = new Date()) {
+    if ((l.status_triagem || "") !== "participando") return false
+    if (!l.participou_em) return false
+    const dataParticipacao = new Date(l.participou_em)
+    if (Number.isNaN(dataParticipacao.getTime())) return false
+    const inicioParticipacao = new Date(dataParticipacao.getFullYear(), dataParticipacao.getMonth(), dataParticipacao.getDate(), 0, 0, 0)
+    const fimDiaSeguinte = new Date(inicioParticipacao.getTime() + 2 * 24 * 3600 * 1000 - 1)
+    return agora >= inicioParticipacao && agora <= fimDiaSeguinte
+  }
+
   const filtered = useMemo(() => {
     const agora = new Date()
     return licitacoes.filter(l => {
@@ -1765,16 +1775,17 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
       const dataLimite = parseBrDateTime(l.data_fim_propostas) || parseBrDateTime(l.data_sessao)
       const passou = !!dataLimite && dataLimite < agora
       const participou = ["participando", "ganhamos", "perdemos"].includes(l.status_triagem || "")
+      const fixadoParticipando = participandoFixadoAteDiaSeguinte(l, agora)
       const arquivada = situacaoArquivada(l.situacao || l.fase_atual)
-      if (filtPrazo === "ativas" && (passou || arquivada)) return false
+      if (filtPrazo === "ativas" && (passou || arquivada) && !fixadoParticipando) return false
       if (filtPrazo === "passadas" && !passou) return false
       if (filtPrazo === "participadas" && !participou) return false
       if (filtPrazo === "arquivadas" && !arquivada) return false
       if (rangeData) {
         const d = parseBrDateTime(l[filtCampoData])
-        if (!d) return false
+        if (!d) return fixadoParticipando && filtData === "amanha"
         const t = d.getTime()
-        if (t < rangeData[0] || t > rangeData[1]) return false
+        if ((t < rangeData[0] || t > rangeData[1]) && !(fixadoParticipando && filtData === "amanha")) return false
       }
       if (filtFinanceiro) {
         const analisado = !!l.analisado_em || !!l.analises_pdf
@@ -1795,7 +1806,7 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
       }
       return true
     })
-  }, [licitacoes, filtPortal, filtCategoria, filtModalidade, filtUF, filtSituacao, filtRelevante, filtStatus, search, rangeData, filtCampoData, filtFinanceiro, filtPrazo])
+  }, [licitacoes, filtPortal, filtCategoria, filtModalidade, filtUF, filtSituacao, filtRelevante, filtStatus, search, rangeData, filtData, filtCampoData, filtFinanceiro, filtPrazo])
 
   const temFiltro = filtPortal || filtCategoria || filtModalidade !== "sem_credenciamento" || filtUF || filtSituacao || filtRelevante || filtStatus || search || filtData || filtFinanceiro || filtPrazo !== "ativas"
 
