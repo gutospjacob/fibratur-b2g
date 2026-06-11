@@ -283,17 +283,18 @@ function mergeRegistroLocal(atual, novo) {
 }
 function mesclarBasesLocalServidor(localData, serverData) {
   const byId = new Map()
+  const localPorChave = new Map()
   ;(Array.isArray(localData) ? localData : []).forEach(l => {
-    if (foraDoEscopoLocal(l)) return
     const key = chaveEstavelLicitacao(l)
-    if (key) byId.set(key, { ...l, pncp_key: key.startsWith("pncp-") ? key : l.pncp_key })
+    if (key) localPorChave.set(key, l)
   })
   ;(Array.isArray(serverData) ? serverData : []).forEach(s => {
     if (foraDoEscopoLocal(s)) return
     if (!s?.id) return
     const key = chaveEstavelLicitacao(s)
     if (!key) return
-    byId.set(key, byId.has(key) ? mergeRegistroLocal(byId.get(key), s) : { ...s, pncp_key: key.startsWith("pncp-") ? key : s.pncp_key })
+    const local = localPorChave.get(key)
+    byId.set(key, local ? mergeRegistroLocal(local, s) : { ...s, pncp_key: key.startsWith("pncp-") ? key : s.pncp_key })
   })
   return migrarStatus(Array.from(byId.values()))
 }
