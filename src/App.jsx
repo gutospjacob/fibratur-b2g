@@ -1760,9 +1760,12 @@ function ModalImportar({ onClose, onSalvar, licitacoesExistentes = [] }) {
 // ─── PÁGINA: LISTA ─────────────────────────────────────────────────────────────
 function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservacao, onStatusChange, onDelete, saving }) {
   const filtrosIniciais = useMemo(() => carregarFiltrosLista(), [])
+  const categoriasIniciais = Array.isArray(filtrosIniciais.filtCategoria)
+    ? filtrosIniciais.filtCategoria
+    : (filtrosIniciais.filtCategoria ? [filtrosIniciais.filtCategoria] : [])
   const [search,       setSearch]       = useState(filtrosIniciais.search || "")
   const [filtPortal,   setFiltPortal]   = useState(filtrosIniciais.filtPortal || "")
-  const [filtCategoria,setFiltCategoria]= useState(filtrosIniciais.filtCategoria || "")
+  const [filtCategoria,setFiltCategoria]= useState(categoriasIniciais)
   const [filtModalidade,setFiltModalidade]= useState(filtrosIniciais.filtModalidade ?? "sem_credenciamento")
   const [filtUF,       setFiltUF]       = useState(filtrosIniciais.filtUF || "")
   const [filtSituacao, setFiltSituacao] = useState(filtrosIniciais.filtSituacao || "")
@@ -1840,7 +1843,7 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
     const agora = new Date()
     return licitacoes.filter(l => {
       if (filtPortal    && l.portal           !== filtPortal)    return false
-      if (filtCategoria && !categoriasDaLicitacao(l).includes(filtCategoria)) return false
+      if (filtCategoria.length && !categoriasDaLicitacao(l).some(cat => filtCategoria.includes(cat))) return false
       const modalidadeFiltro = modalidadeFiltroDaLicitacao(l)
       if (filtModalidade === "sem_credenciamento" && modalidadeFiltro === "credenciamento") return false
       if (filtModalidade && filtModalidade !== "sem_credenciamento" && modalidadeFiltro !== filtModalidade) return false
@@ -1885,7 +1888,7 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
     })
   }, [licitacoes, filtPortal, filtCategoria, filtModalidade, filtUF, filtSituacao, filtRelevante, filtStatus, search, rangeData, filtData, filtCampoData, filtFinanceiro, filtPrazo])
 
-  const temFiltro = filtPortal || filtCategoria || filtModalidade !== "sem_credenciamento" || filtUF || filtSituacao || filtRelevante || filtStatus || search || filtData || filtFinanceiro || filtPrazo !== "ativas"
+  const temFiltro = filtPortal || filtCategoria.length > 0 || filtModalidade !== "sem_credenciamento" || filtUF || filtSituacao || filtRelevante || filtStatus || search || filtData || filtFinanceiro || filtPrazo !== "ativas"
 
   function licitacaoPassou(l) {
     const dataLimite = parseBrDateTime(l.data_fim_propostas) || parseBrDateTime(l.data_sessao)
@@ -1955,7 +1958,7 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
   }, [filtered, ordenacao])
 
   function limparFiltros() {
-    setFiltPortal(""); setFiltCategoria(""); setFiltModalidade("sem_credenciamento"); setFiltUF(""); setFiltSituacao("")
+    setFiltPortal(""); setFiltCategoria([]); setFiltModalidade("sem_credenciamento"); setFiltUF(""); setFiltSituacao("")
     setFiltRelevante(""); setFiltStatus(""); setSearch("")
     setFiltData(""); setFiltDataDe(""); setFiltDataAte("")
     setFiltFinanceiro("")
@@ -2015,7 +2018,7 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
             style={{ flex: 1, minWidth: 240, padding: "7px 12px", borderRadius: 5, border: "1px solid #d1d5db", fontSize: 13, color: "#374151" }}
           />
           <select value={filtPortal}    onChange={e => setFiltPortal(e.target.value)}    style={selectStyle}><option value="">Todos os portais</option>{PORTAIS.map(p => <option key={p} value={p}>{p}</option>)}</select>
-          <select value={filtCategoria} onChange={e => setFiltCategoria(e.target.value)} style={selectStyle}><option value="">Todas categorias</option>{CATEGORIAS.map(c => <option key={c} value={c}>{CATEGORIA_LABEL[c]}</option>)}</select>
+          <FiltroCategoriasMulti value={filtCategoria} onChange={setFiltCategoria} style={selectStyle} />
           <select value={filtModalidade} onChange={e => setFiltModalidade(e.target.value)} style={{ ...selectStyle, minWidth: 170 }} title="Filtrar modalidade/tipo">
             {MODALIDADE_FILTROS.map(m => <option key={m.value || "todas"} value={m.value}>{m.label}</option>)}
           </select>
@@ -3043,6 +3046,63 @@ function ModalLote({ onClose, onIniciar, jaExistentes }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function FiltroCategoriasMulti({ value, onChange, style }) {
+  const selecionadas = Array.isArray(value) ? value : (value ? [value] : [])
+  const [aberto, setAberto] = useState(false)
+  const label = selecionadas.length === 0
+    ? "Todas categorias"
+    : selecionadas.length === 1
+      ? CATEGORIA_LABEL[selecionadas[0]] || selecionadas[0]
+      : `${selecionadas.length} categorias`
+
+  function alternar(cat) {
+    const atual = new Set(selecionadas)
+    if (atual.has(cat)) atual.delete(cat)
+    else atual.add(cat)
+    onChange(Array.from(atual))
+  }
+
+  return (
+    <div style={{ position: "relative", minWidth: 175 }}>
+      <button
+        type="button"
+        onClick={() => setAberto(a => !a)}
+        style={{
+          ...(style || {}),
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          textAlign: "left",
+          background: "#fff",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ color: "#64748b" }}>▾</span>
+      </button>
+      {aberto && (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 60, width: 260, background: "#fff", border: "1px solid #cbd5e1", borderRadius: 8, boxShadow: "0 12px 30px #0002", padding: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 6px 8px", borderBottom: "1px solid #e5e7eb", marginBottom: 6 }}>
+            <strong style={{ fontSize: 12, color: "#0f172a" }}>Categorias</strong>
+            <button type="button" onClick={() => onChange([])} style={{ border: "none", background: "transparent", color: "#2563eb", fontSize: 12, cursor: "pointer", fontWeight: 800 }}>Limpar</button>
+          </div>
+          {CATEGORIAS.map(cat => {
+            const checked = selecionadas.includes(cat)
+            return (
+              <label key={cat} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 7px", borderRadius: 6, cursor: "pointer", background: checked ? "#eff6ff" : "transparent", color: checked ? "#1d4ed8" : "#334155", fontSize: 13, fontWeight: checked ? 800 : 500 }}>
+                <input type="checkbox" checked={checked} onChange={() => alternar(cat)} />
+                <span>{CATEGORIA_LABEL[cat] || cat}</span>
+              </label>
+            )
+          })}
+          <button type="button" onClick={() => setAberto(false)} style={{ marginTop: 6, width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", fontWeight: 850, cursor: "pointer" }}>Aplicar</button>
+        </div>
+      )}
     </div>
   )
 }
