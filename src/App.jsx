@@ -3120,11 +3120,38 @@ function parseBrDateTime(s) {
   return isNaN(d.getTime()) ? null : d
 }
 
-function deveDescartarAutomaticamente(l, agora = new Date()) {
+function statusAutomaticoPorPrazo(l, agora = new Date()) {
   const status = l?.status_triagem || "novo"
-  if (["participando", "ganhamos", "perdemos", "descartado"].includes(status)) return false
   const dataLimite = parseBrDateTime(l?.data_fim_propostas) || parseBrDateTime(l?.data_sessao)
-  return !!dataLimite && dataLimite < agora
+  if (!dataLimite || dataLimite >= agora) return null
+  if (status === "participando") {
+    return {
+      status: "perdemos",
+      patch: {
+        motivo_perda: l.motivo_perda || "Prazo/sessão passou sem atualização do resultado",
+        perdemos_em: l.perdemos_em || agora.toISOString(),
+        status_historico: historicoComStatus(l, "perdemos", {
+          automatico: true,
+          motivo_perda: "Prazo/sessão passou sem atualização do resultado",
+        }, agora),
+      },
+    }
+  }
+  if (!["ganhamos", "perdemos", "descartado"].includes(status)) {
+    return {
+      status: "descartado",
+      patch: {
+        auto_descartado_em: l.auto_descartado_em || agora.toISOString(),
+        auto_descartado_motivo: "Prazo da licitação expirado sem participação marcada",
+        motivo_descarte: l.motivo_descarte || "Prazo expirado sem participação",
+        status_historico: historicoComStatus(l, "descartado", {
+          automatico: true,
+          auto_descartado_motivo: "Prazo expirado sem participação",
+        }, agora),
+      },
+    }
+  }
+  return null
 }
 
 function historicoComStatus(l, status, extras = {}, agora = new Date()) {
@@ -4789,18 +4816,10 @@ export default function App() {
     const agora = new Date()
     const alteradas = []
     const normalizadas = data.map(l => {
-      if (!deveDescartarAutomaticamente(l, agora)) return l
-      const patch = {
-        status_triagem: "descartado",
-        auto_descartado_em: l.auto_descartado_em || agora.toISOString(),
-        auto_descartado_motivo: "Prazo da licitação expirado sem participação marcada",
-        motivo_descarte: l.motivo_descarte || "Prazo expirado sem participação",
-        status_historico: historicoComStatus(l, "descartado", {
-          automatico: true,
-          auto_descartado_motivo: "Prazo expirado sem participação",
-        }, agora),
-      }
-      alteradas.push({ id: l.id, patch })
+      const auto = statusAutomaticoPorPrazo(l, agora)
+      if (!auto) return l
+      const patch = { status_triagem: auto.status, ...auto.patch }
+      alteradas.push({ id: l.id, status: auto.status, patch })
       return { ...l, ...patch }
     })
     setLicitacoes(normalizadas)
@@ -4808,12 +4827,7 @@ export default function App() {
     setFetchError(error)
     setLoading(false)
     if (alteradas.length) {
-      Promise.all(alteradas.map(({ id, patch }) => updateStatusTriagem(id, "descartado", {
-        auto_descartado_em: patch.auto_descartado_em,
-        auto_descartado_motivo: patch.auto_descartado_motivo,
-        motivo_descarte: patch.motivo_descarte,
-        status_historico: patch.status_historico,
-      }))).catch(e => console.warn("[auto-descarte]", e))
+      Promise.all(alteradas.map(({ id, status, patch }) => updateStatusTriagem(id, status, patch))).catch(e => console.warn("[auto-status]", e))
     }
   }, [])
 
@@ -4829,30 +4843,17 @@ export default function App() {
       const agora = new Date()
       const alteradas = []
       const normalizadas = data.map(l => {
-        if (!deveDescartarAutomaticamente(l, agora)) return l
-        const patch = {
-          status_triagem: "descartado",
-          auto_descartado_em: l.auto_descartado_em || agora.toISOString(),
-          auto_descartado_motivo: "Prazo da licitação expirado sem participação marcada",
-          motivo_descarte: l.motivo_descarte || "Prazo expirado sem participação",
-          status_historico: historicoComStatus(l, "descartado", {
-            automatico: true,
-            auto_descartado_motivo: "Prazo expirado sem participação",
-          }, agora),
-        }
-        alteradas.push({ id: l.id, patch })
+        const auto = statusAutomaticoPorPrazo(l, agora)
+        if (!auto) return l
+        const patch = { status_triagem: auto.status, ...auto.patch }
+        alteradas.push({ id: l.id, status: auto.status, patch })
         return { ...l, ...patch }
       })
       setLicitacoes(normalizadas)
       setSource(src)
       setFetchError(error || (coleta.ok ? null : new Error(coleta.error)))
       if (alteradas.length) {
-        await Promise.all(alteradas.map(({ id, patch }) => updateStatusTriagem(id, "descartado", {
-          auto_descartado_em: patch.auto_descartado_em,
-          auto_descartado_motivo: patch.auto_descartado_motivo,
-          motivo_descarte: patch.motivo_descarte,
-          status_historico: patch.status_historico,
-        })))
+        await Promise.all(alteradas.map(({ id, status, patch }) => updateStatusTriagem(id, status, patch)))
       }
       if (coleta.ok) {
         alert(`Atualização real concluída: ${coleta.total || 0} licitação(ões) aderente(s) encontradas/atualizadas no PNCP.`)
