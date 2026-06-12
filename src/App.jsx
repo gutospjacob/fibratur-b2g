@@ -619,25 +619,27 @@ function mergeLicitacaoCompleta(atual, nova) {
 }
 
 function pedirMotivoDescarte() {
+  const motivosRapidos = {
+    3: "Não pode subcontratar",
+    4: "Pede índices financeiros",
+    5: "Pede patrimônio líquido mínimo",
+  }
   const texto = [
     "Escolha o motivo do descarte:",
     "",
-    ...MOTIVOS_DESCARTE.map((m, i) => `${i + 1}. ${m}`),
+    "3. Não pode subcontratar",
+    "4. Pede índices financeiros",
+    "5. Pede patrimônio líquido mínimo",
     "",
-    "Digite o número ou escreva outro motivo."
+    "Outro: menos de 10 passageiros"
   ].join("\n")
-  const resposta = window.prompt(texto, "")
+  const resposta = window.prompt(texto, "menos de 10 passageiros")
   if (resposta === null) return null
   const trimmed = resposta.trim()
   const numero = Number(trimmed)
-  let motivo = Number.isInteger(numero) && numero >= 1 && numero <= MOTIVOS_DESCARTE.length
-    ? MOTIVOS_DESCARTE[numero - 1]
+  let motivo = Number.isInteger(numero) && motivosRapidos[numero]
+    ? motivosRapidos[numero]
     : trimmed
-  if (motivo === "Outro") {
-    const outro = window.prompt("Descreva o motivo do descarte:", "")
-    if (outro === null) return null
-    motivo = outro.trim()
-  }
   return motivo || "Não informado"
 }
 
