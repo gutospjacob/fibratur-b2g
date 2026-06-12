@@ -643,6 +643,81 @@ function pedirMotivoDescarte() {
   return motivo || "Não informado"
 }
 
+function ModalMotivoDescarte({ onEscolher, onCancelar }) {
+  const opcoes = [
+    { titulo: "Não conta etapa", motivo: "Não conta etapa", desc: "Use quando não deve entrar no funil/indicadores principais.", cor: "#64748b" },
+    { titulo: "Não pode subcontratar", motivo: "Não pode subcontratar", desc: "Edital exige execução própria e impede agência.", cor: "#dc2626" },
+    { titulo: "Índices financeiros", motivo: "Pede índices financeiros", desc: "LG, LC, SG, GE ou exigência financeira difícil.", cor: "#f59e0b" },
+    { titulo: "Patrimônio líquido", motivo: "Pede patrimônio líquido mínimo", desc: "Exige PL mínimo/capital/balanço fora do ideal.", cor: "#b45309" },
+    { titulo: "Menos de 10 passageiros", motivo: "Menos de 10 passageiros para aéreo", desc: "Volume pequeno demais para passagem aérea.", cor: "#2563eb" },
+  ]
+  const [selecionado, setSelecionado] = useState(opcoes[4].motivo)
+  const [outro, setOutro] = useState("")
+  const motivoFinal = outro.trim() || selecionado
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ width: "min(760px, 96vw)", background: "#fff", borderRadius: 12, boxShadow: "0 24px 70px #0005", overflow: "hidden", border: "1px solid #dbeafe" }}>
+        <div style={{ padding: "18px 22px", background: "#1e293b", color: "#fff", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Motivo do descarte</h2>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#cbd5e1" }}>Selecione o motivo para manter o dashboard limpo e comparável.</p>
+          </div>
+          <button onClick={onCancelar} style={{ border: "1px solid #94a3b8", background: "#334155", color: "#fff", borderRadius: 8, width: 36, height: 36, cursor: "pointer", fontSize: 18 }}>×</button>
+        </div>
+
+        <div style={{ padding: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
+            {opcoes.map(op => {
+              const ativo = selecionado === op.motivo && !outro.trim()
+              return (
+                <button
+                  key={op.motivo}
+                  onClick={() => { setSelecionado(op.motivo); setOutro("") }}
+                  style={{
+                    textAlign: "left",
+                    padding: 14,
+                    borderRadius: 10,
+                    border: ativo ? `2px solid ${op.cor}` : "1px solid #e5e7eb",
+                    background: ativo ? `${op.cor}12` : "#fff",
+                    cursor: "pointer",
+                    minHeight: 94,
+                    boxShadow: ativo ? `0 0 0 3px ${op.cor}18` : "none",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: op.cor, fontSize: 13, fontWeight: 900 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 99, background: op.cor, display: "inline-block" }} />
+                    {op.titulo}
+                  </div>
+                  <div style={{ marginTop: 8, color: "#64748b", fontSize: 12, lineHeight: 1.35 }}>{op.desc}</div>
+                </button>
+              )
+            })}
+          </div>
+
+          <label style={{ display: "block", marginTop: 16, fontSize: 12, fontWeight: 850, color: "#475569", textTransform: "uppercase" }}>Outro motivo</label>
+          <input
+            value={outro}
+            onChange={e => setOutro(e.target.value)}
+            placeholder="Ex: fora do escopo, região ruim, preço inviável..."
+            style={{ marginTop: 6, width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14 }}
+            autoFocus
+          />
+
+          <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 8, background: "#f8fafc", color: "#334155", fontSize: 13 }}>
+            Vai salvar como: <strong>{motivoFinal}</strong>
+          </div>
+        </div>
+
+        <div style={{ padding: "14px 20px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", gap: 10, background: "#f8fafc" }}>
+          <button onClick={onCancelar} style={btnStyle("#fff", "#334155")}>Cancelar</button>
+          <button onClick={() => onEscolher(motivoFinal)} style={btnStyle("#dc2626", "#fff")}>Descartar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── UTILITÁRIOS ──────────────────────────────────────────────────────────────
 function formatDate(d) {
   if (!d) return "—"
@@ -4641,6 +4716,8 @@ export default function App() {
   const [saving,      setSaving]      = useState({})
   const [modalImportar, setModalImportar] = useState(false)
   const [modalLote,     setModalLote]     = useState(false)
+  const [modalMotivoDescarte, setModalMotivoDescarte] = useState(false)
+  const motivoDescarteResolver = useRef(null)
   // Fila de importação em background: { pendentes: [url], total, sucessos, erros, atual, ativa, log: [{url, tipo, detalhes}] }
   const [fila, setFila] = useState({ pendentes: [], total: 0, sucessos: 0, duplicadas: 0, erros: 0, atual: null, ativa: false, log: [] })
   const [logAberto, setLogAberto] = useState(false)
@@ -4928,6 +5005,20 @@ export default function App() {
     setSaving(s => ({ ...s, [id]: val || undefined }))
   }
 
+  function pedirMotivoDescarteVisual() {
+    setModalMotivoDescarte(true)
+    return new Promise(resolve => {
+      motivoDescarteResolver.current = resolve
+    })
+  }
+
+  function resolverMotivoDescarte(motivo) {
+    const resolve = motivoDescarteResolver.current
+    motivoDescarteResolver.current = null
+    setModalMotivoDescarte(false)
+    if (resolve) resolve(motivo)
+  }
+
   async function handleToggleRelevante(id, atual) {
     setSavingId(id, true)
     const novoValor = !atual
@@ -4947,7 +5038,7 @@ export default function App() {
     const licAnterior = licitacoes.find(l => l.id === id)
     const patchHistorico = {}
     if (status_triagem === "descartado" && licAnterior?.status_triagem !== "descartado" && !licAnterior?.motivo_descarte) {
-      const motivo = pedirMotivoDescarte()
+      const motivo = await pedirMotivoDescarteVisual()
       if (motivo === null) { setSavingId(id, false); return }
       patchHistorico.motivo_descarte = motivo
       patchHistorico.categoria_descarte = motivo
@@ -5277,6 +5368,13 @@ export default function App() {
           jaExistentes={licitacoes}
           onClose={() => setModalLote(false)}
           onIniciar={iniciarImportacaoLote}
+        />
+      )}
+
+      {modalMotivoDescarte && (
+        <ModalMotivoDescarte
+          onCancelar={() => resolverMotivoDescarte(null)}
+          onEscolher={(motivo) => resolverMotivoDescarte(motivo)}
         />
       )}
     </div>
