@@ -435,6 +435,12 @@ function linkLicitacaoCorrigido(l) {
   return l?.link_licitacao || ""
 }
 
+function abrirLinkEmNovaJanela(url) {
+  if (!url) return
+  const janela = window.open(url, "_blank", "popup=yes,width=1400,height=900,left=80,top=40,noopener,noreferrer")
+  if (janela) janela.opener = null
+}
+
 function modalidadeFiltroDaLicitacao(l) {
   const t = textoNormalizado([l?.modalidade, l?.tipo_contrato, l?.tipo_lance, l?.objeto, l?.num_edital].filter(Boolean).join(" "))
   if (/credenciamento|chamamento publico/.test(t)) return "credenciamento"
@@ -2142,9 +2148,9 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
                 onContextMenu={e => {
                   if (!linkCorrigido) return
                   e.preventDefault()
-                  window.open(linkCorrigido, "_blank", "noopener,noreferrer")
+                  abrirLinkEmNovaJanela(linkCorrigido)
                 }}
-                title={linkCorrigido ? "Botão direito: abrir licitação em nova aba" : undefined}
+                title={linkCorrigido ? "Botão direito: abrir licitação em outra janela" : undefined}
               >
                 {/* Relevante */}
                 <td style={{ padding: "10px 8px" }}>
@@ -2242,9 +2248,7 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
                   <div style={{ display: "flex", gap: 4 }}>
                     <button onClick={() => abrirDetalhePreservandoLista(l)} title="Ver detalhes" style={btnStyle("#e0f2fe", "#0369a1")}>🔍</button>
                     {linkCorrigido && (
-                      <a href={linkCorrigido} target="_blank" rel="noreferrer" title="Abrir licitação">
-                        <button style={btnStyle("#f0fdf4", "#15803d")}>🔗</button>
-                      </a>
+                      <button onClick={() => abrirLinkEmNovaJanela(linkCorrigido)} title="Abrir licitação em outra janela" style={btnStyle("#f0fdf4", "#15803d")}>🪟</button>
                     )}
                     <button onClick={() => abrirObs(l)} title="Observação" style={btnStyle("#fdf4ff", "#7e22ce")}>💬</button>
                     <button onClick={() => onDelete(l)} disabled={saving[l.id]} title="Excluir licitação" style={btnStyle("#fee2e2", "#b91c1c")}>🗑</button>
@@ -2576,9 +2580,9 @@ function PaginaDetalhe({ licitacao, onVoltar, onToggleRelevante, onObservacao, o
             {licitacao.relevante ? "⭐ Relevante" : "☆ Marcar Relevante"}
           </button>
           {linkLicitacaoCorrigido(licitacao) && (
-            <a href={linkLicitacaoCorrigido(licitacao)} target="_blank" rel="noreferrer">
-              <button style={btnStyle("#f0fdf4", "#15803d", true)}>🔗 Abrir Licitação</button>
-            </a>
+            <button onClick={() => abrirLinkEmNovaJanela(linkLicitacaoCorrigido(licitacao))} style={btnStyle("#f0fdf4", "#15803d", true)}>
+              🪟 Abrir em outra janela
+            </button>
           )}
         </div>
       </div>
