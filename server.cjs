@@ -15,10 +15,25 @@ const { collectAll, fetchPncpDocuments, fetchPncpItens, fetchPncpCompraDetalhe }
 
 const PORT = Number(process.env.PORT || 5173)
 const ROOT = path.join(__dirname, 'dist')   // pasta com o build Vite
-const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname
+var DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname
+
+function ensureWritableDataDir(preferredDir) {
+  var fallbackDir = path.join(require('os').tmpdir(), 'fibratur-data')
+  try {
+    fs.mkdirSync(preferredDir, { recursive: true })
+    fs.mkdirSync(path.join(preferredDir, 'uploads'), { recursive: true })
+    return preferredDir
+  } catch (err) {
+    console.warn('[data] Nao foi possivel usar DATA_DIR=' + preferredDir + '. Usando pasta temporaria: ' + fallbackDir)
+    console.warn('[data] Motivo: ' + (err && err.message ? err.message : err))
+    fs.mkdirSync(fallbackDir, { recursive: true })
+    fs.mkdirSync(path.join(fallbackDir, 'uploads'), { recursive: true })
+    return fallbackDir
+  }
+}
+
+DATA_DIR = ensureWritableDataDir(DATA_DIR)
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads')
-fs.mkdirSync(DATA_DIR, { recursive: true })
-fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
 // Arquivo de persistência permanente (ao lado do server.cjs, nunca dentro de dist/)
 var DADOS_FILE = path.join(DATA_DIR, 'dados.json')
