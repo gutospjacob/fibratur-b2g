@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: fibratur
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /var/data/fibratur
+      - key: APP_USER
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+    disk:
+      name: fibratur-data
+      mountPath: /var/data/fibratur
+      sizeGB: 1

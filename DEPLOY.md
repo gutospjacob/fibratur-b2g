@@ -64,3 +64,23 @@ Use:
 - Persistent disk: monte em `/var/data/fibratur`
 - Environment variables: `DATA_DIR`, `APP_USER`, `APP_PASSWORD`, `HOST=0.0.0.0`
 
+## Render via Blueprint
+
+Este repositorio inclui `render.yaml`. No Render:
+
+1. Clique em **New +** -> **Blueprint**.
+2. Conecte o repositorio do GitHub.
+3. Selecione o blueprint `render.yaml`.
+4. Defina `APP_USER` e `APP_PASSWORD` nas variaveis secretas.
+5. Confirme que o disco `fibratur-data` foi criado em `/var/data/fibratur`.
+
+Depois do primeiro deploy, copie os dados privados para o disco persistente:
+
+```text
+/var/data/fibratur/dados.json
+/var/data/fibratur/documentos.json
+/var/data/fibratur/senhas.json
+/var/data/fibratur/uploads/
+```
+
+Se esses arquivos nao forem copiados para o disco persistente, o sistema sobe vazio ou com dados padrao.
