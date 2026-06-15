@@ -1847,7 +1847,8 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
       const passou = !!dataLimite && dataLimite < agora
       const participou = ["participando", "ganhamos", "perdemos"].includes(l.status_triagem || "")
       const arquivada = situacaoArquivada(l.situacao || l.fase_atual)
-      if (filtPrazo === "ativas" && (passou || arquivada)) return false
+      const dataManualSelecionada = !!rangeData
+      if (filtPrazo === "ativas" && !dataManualSelecionada && (passou || arquivada)) return false
       if (filtPrazo === "passadas" && !passou) return false
       if (filtPrazo === "participadas" && !participou) return false
       if (filtPrazo === "arquivadas" && !arquivada) return false
@@ -2096,7 +2097,8 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
         <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
           {filtered.length} licitaç{filtered.length === 1 ? "ão" : "ões"} encontrada{filtered.length === 1 ? "" : "s"}
           {licitacoes.length !== filtered.length && ` (de ${licitacoes.length} no total)`}
-          {filtPrazo === "ativas" && " · ocultando prazos já passados e situações arquivadas"}
+          {filtPrazo === "ativas" && rangeData && " · mostrando o dia/intervalo inteiro, inclusive prazos já passados"}
+          {filtPrazo === "ativas" && !rangeData && " · ocultando prazos já passados e situações arquivadas"}
         </div>
       </div>
 
