@@ -1829,19 +1829,10 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
     return null
   }, [filtData, filtDataDe, filtDataAte])
 
-  function participandoFixadoAteDiaSeguinte(l, agora = new Date()) {
-    if ((l.status_triagem || "") !== "participando") return false
-    if (!l.participou_em) return false
-    const dataParticipacao = new Date(l.participou_em)
-    if (Number.isNaN(dataParticipacao.getTime())) return false
-    const inicioParticipacao = new Date(dataParticipacao.getFullYear(), dataParticipacao.getMonth(), dataParticipacao.getDate(), 0, 0, 0)
-    const fimDiaSeguinte = new Date(inicioParticipacao.getTime() + 2 * 24 * 3600 * 1000 - 1)
-    return agora >= inicioParticipacao && agora <= fimDiaSeguinte
-  }
-
   const filtered = useMemo(() => {
     const agora = new Date()
     return licitacoes.filter(l => {
+      if ((l.status_triagem || "") === "participando") return true
       if (filtPortal    && l.portal           !== filtPortal)    return false
       if (filtCategoria.length && !categoriasDaLicitacao(l).some(cat => filtCategoria.includes(cat))) return false
       const modalidadeFiltro = modalidadeFiltroDaLicitacao(l)
@@ -1855,17 +1846,16 @@ function PaginaLicitacoes({ licitacoes, onSelect, onToggleRelevante, onObservaca
       const dataLimite = parseBrDateTime(l.data_fim_propostas) || parseBrDateTime(l.data_sessao)
       const passou = !!dataLimite && dataLimite < agora
       const participou = ["participando", "ganhamos", "perdemos"].includes(l.status_triagem || "")
-      const fixadoParticipando = participandoFixadoAteDiaSeguinte(l, agora)
       const arquivada = situacaoArquivada(l.situacao || l.fase_atual)
-      if (filtPrazo === "ativas" && (passou || arquivada) && !fixadoParticipando) return false
+      if (filtPrazo === "ativas" && (passou || arquivada)) return false
       if (filtPrazo === "passadas" && !passou) return false
       if (filtPrazo === "participadas" && !participou) return false
       if (filtPrazo === "arquivadas" && !arquivada) return false
       if (rangeData) {
         const d = parseBrDateTime(l[filtCampoData])
-        if (!d) return fixadoParticipando && filtData === "amanha"
+        if (!d) return false
         const t = d.getTime()
-        if ((t < rangeData[0] || t > rangeData[1]) && !(fixadoParticipando && filtData === "amanha")) return false
+        if (t < rangeData[0] || t > rangeData[1]) return false
       }
       if (filtFinanceiro) {
         const analisado = !!l.analisado_em || !!l.analises_pdf
@@ -3123,7 +3113,10 @@ function parseBrDateTime(s) {
 function statusAutomaticoPorPrazo(l, agora = new Date()) {
   const status = l?.status_triagem || "novo"
   const dataLimite = parseBrDateTime(l?.data_fim_propostas) || parseBrDateTime(l?.data_sessao)
-  if (!dataLimite || dataLimite >= agora) return null
+  if (!dataLimite) return null
+  const fimDiaLimite = new Date(dataLimite.getFullYear(), dataLimite.getMonth(), dataLimite.getDate(), 23, 59, 59, 999)
+  if (status === "participando" && fimDiaLimite >= agora) return null
+  if (status !== "participando" && dataLimite >= agora) return null
   if (status === "participando") {
     return {
       status: "perdemos",
@@ -3577,6 +3570,7 @@ function PaginaDashboard({ licitacoes, onAbrirLista, onReanalisarTudo, onReanali
       return true
     }
     return licitacoes.filter(l => {
+      if ((l.status_triagem || "") === "participando") return true
       if (!periodoOk(l)) return false
       if (dashFiltros.categoria && !categoriasDaLicitacao(l).includes(dashFiltros.categoria)) return false
       if (dashFiltros.portal && portalDash(l) !== dashFiltros.portal) return false
