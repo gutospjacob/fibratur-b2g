@@ -123,6 +123,7 @@ const MOTIVOS_DESCARTE = [
   "Não pode subcontratar",
   "Pede índices financeiros",
   "Pede patrimônio líquido mínimo",
+  "Preço fixo",
   "Exigência documental inviável",
   "Atestado técnico incompatível",
   "Região / logística ruim",
@@ -345,6 +346,7 @@ function grupoMotivoDescarte(valor) {
   if (/document|certidao|habilitacao|exigencia|inviavel|regularidade/.test(t)) return "Exigência documental inviável"
   if (/atestado|capacidade tecnica|tecnico incompat/.test(t)) return "Atestado técnico incompatível"
   if (/regiao|logistica|distancia|localidade|local/.test(t)) return "Região / logística ruim"
+  if (/preco fixo|valor fixo|taxa fixa|preco tabelado|valor tabelado/.test(t)) return "Preço fixo"
   if (/preco|margem|custo|baixo|inviavel economic/.test(t)) return "Preço ou margem ruim"
   return raw
 }
@@ -655,6 +657,7 @@ function ModalMotivoDescarte({ onEscolher, onCancelar }) {
     { titulo: "Não pode subcontratar", motivo: "Não pode subcontratar", desc: "Edital exige execução própria e impede agência.", cor: "#dc2626" },
     { titulo: "Índices financeiros", motivo: "Pede índices financeiros", desc: "LG, LC, SG, GE ou exigência financeira difícil.", cor: "#f59e0b" },
     { titulo: "Patrimônio líquido", motivo: "Pede patrimônio líquido mínimo", desc: "Exige PL mínimo/capital/balanço fora do ideal.", cor: "#b45309" },
+    { titulo: "Preço fixo", motivo: "Preço fixo", desc: "Edital trava preço/taxa e não permite margem viável.", cor: "#9333ea" },
     { titulo: "Menos de 10 passageiros", motivo: "Menos de 10 passageiros para aéreo", desc: "Volume pequeno demais para passagem aérea.", cor: "#2563eb" },
   ]
   const [selecionado, setSelecionado] = useState(opcoes[4].motivo)
@@ -3301,7 +3304,7 @@ function calcularStats(licitacoes) {
   const cMotivos = {}
   for (const l of licitacoes) {
     if ((l.status_triagem || "") !== "descartado") continue
-    const motivo = (l.motivo_descarte || l.auto_descartado_motivo || "Sem motivo").toString().trim()
+    const motivo = grupoMotivoDescarte(l.motivo_descarte || l.auto_descartado_motivo || "Sem motivo")
     cMotivos[motivo] = (cMotivos[motivo] || 0) + 1
   }
   const topMotivosDescarte = Object.entries(cMotivos).sort((a, b) => b[1] - a[1]).slice(0, 6)
